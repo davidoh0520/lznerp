@@ -9,8 +9,22 @@ CREATE TABLE IF NOT EXISTS items (
     unit TEXT DEFAULT 'EA',
     category TEXT,
     description TEXT,
+    remark TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 품목 도면 테이블
+CREATE TABLE IF NOT EXISTS item_drawings (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_size BIGINT,
+    mime_type TEXT,
+    storage_path TEXT,
+    sequence INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- 거래처 테이블
@@ -109,6 +123,9 @@ CREATE TABLE IF NOT EXISTS documents (
 
 -- 인덱스 생성 (성능 최적화)
 CREATE INDEX IF NOT EXISTS idx_items_code ON items(item_code);
+CREATE INDEX IF NOT EXISTS idx_items_remark ON items(remark);
+CREATE INDEX IF NOT EXISTS idx_item_drawings_item ON item_drawings(item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_item_drawings_item_sequence ON item_drawings(item_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_partners_code ON partners(partner_code);
 CREATE INDEX IF NOT EXISTS idx_purchases_partner ON purchases(partner_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_status ON purchases(status);
@@ -120,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_export ON documents(export_id);
 
 -- RLS (Row Level Security) 정책 - 모두 허용 (테스트용)
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE item_drawings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_items ENABLE ROW LEVEL SECURITY;
@@ -130,6 +148,7 @@ ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
 -- 모두에게 SELECT 허용
 CREATE POLICY "Allow select for all" ON items FOR SELECT USING (true);
+CREATE POLICY "Allow select for all" ON item_drawings FOR SELECT USING (true);
 CREATE POLICY "Allow select for all" ON partners FOR SELECT USING (true);
 CREATE POLICY "Allow select for all" ON purchases FOR SELECT USING (true);
 CREATE POLICY "Allow select for all" ON purchase_items FOR SELECT USING (true);
@@ -142,6 +161,10 @@ CREATE POLICY "Allow select for all" ON documents FOR SELECT USING (true);
 CREATE POLICY "Allow insert for all" ON items FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow update for all" ON items FOR UPDATE USING (true);
 CREATE POLICY "Allow delete for all" ON items FOR DELETE USING (true);
+
+CREATE POLICY "Allow insert for all" ON item_drawings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update for all" ON item_drawings FOR UPDATE USING (true);
+CREATE POLICY "Allow delete for all" ON item_drawings FOR DELETE USING (true);
 
 CREATE POLICY "Allow insert for all" ON partners FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow update for all" ON partners FOR UPDATE USING (true);
@@ -180,3 +203,80 @@ ALTER TABLE partners ADD COLUMN IF NOT EXISTS bank_account_number TEXT;
 
 -- Index for tax registration number lookups
 CREATE INDEX IF NOT EXISTS idx_partners_tax_reg ON partners(tax_registration_number);
+
+-- ===== Migration: Product management fields =====
+ALTER TABLE items ADD COLUMN IF NOT EXISTS remark TEXT;
+
+CREATE TABLE IF NOT EXISTS item_drawings (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_size BIGINT,
+    mime_type TEXT,
+    storage_path TEXT,
+    sequence INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE item_drawings ADD COLUMN IF NOT EXISTS storage_path TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_items_remark ON items(remark);
+CREATE INDEX IF NOT EXISTS idx_item_drawings_item ON item_drawings(item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_item_drawings_item_sequence ON item_drawings(item_id, sequence);
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'item-drawings',
+    'item-drawings',
+    true,
+    10485760,
+    ARRAY[
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'application/dwg',
+        'image/vnd.dwg',
+        'image/x-dwg'
+    ]
+)
+ON CONFLICT (id) DO UPDATE
+SET public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'Allow item drawings read'
+    ) THEN
+        CREATE POLICY "Allow item drawings read"
+        ON storage.objects FOR SELECT
+        USING (bucket_id = 'item-drawings');
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'Allow item drawings upload'
+    ) THEN
+        CREATE POLICY "Allow item drawings upload"
+        ON storage.objects FOR INSERT
+        WITH CHECK (bucket_id = 'item-drawings');
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'Allow item drawings delete'
+    ) THEN
+        CREATE POLICY "Allow item drawings delete"
+        ON storage.objects FOR DELETE
+        USING (bucket_id = 'item-drawings');
+    END IF;
+END $$;
