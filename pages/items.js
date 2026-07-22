@@ -4,7 +4,6 @@ const ITEM_REMARK_MAX_LENGTH = 1000;
 const ITEM_DRAWING_LIMIT = 3;
 const ITEM_DRAWING_MAX_SIZE = 10 * 1024 * 1024;
 const ITEM_DRAWINGS_BUCKET = 'item-drawings';
-const ITEM_PART_CATEGORY_ALIASES = new Set((CONFIG.itemPartCategoryAliases || []).map(alias => String(alias).trim().toLowerCase()));
 const ITEM_DRAWING_ALLOWED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'dwg']);
 const ITEM_DRAWING_ALLOWED_MIME_TYPES = new Set([
     'application/pdf',
@@ -20,6 +19,7 @@ const ITEM_DRAWING_ALLOWED_MIME_TYPES = new Set([
 ]);
 
 let itemModalState = createDefaultItemModalState();
+let itemDrawingTempIdCounter = 0;
 
 function createDefaultItemModalState() {
     return {
@@ -63,7 +63,7 @@ function getFileExtension(name) {
 
 function isPartCategory(category) {
     const normalized = String(category || '').trim().toLowerCase();
-    return ITEM_PART_CATEGORY_ALIASES.has(normalized);
+    return new Set((CONFIG.itemPartCategoryAliases || []).map(alias => String(alias).trim().toLowerCase())).has(normalized);
 }
 
 function formatFileSize(size) {
@@ -254,7 +254,7 @@ function openItemModal(item = null) {
                 <span class="field-counter" id="remarkCounter">0/${ITEM_REMARK_MAX_LENGTH}</span>
             </div>
             <textarea id="remark" maxlength="${ITEM_REMARK_MAX_LENGTH}" placeholder="${t('items.placeholder.remark')}" oninput="updateRemarkCounter()">${escapeHtml(remarkValue)}</textarea>
-            <span id="itemRemarkError" class="field-error"></span>
+            <span id="itemRemarkError" class="field-error" role="alert" aria-live="polite"></span>
         </div>
 
         <div class="form-group item-drawings-panel">
@@ -264,7 +264,7 @@ function openItemModal(item = null) {
             </div>
             <div class="form-hint" id="itemDrawingHint"></div>
             <div id="itemDrawingsSection"></div>
-            <span id="itemDrawingError" class="field-error"></span>
+            <span id="itemDrawingError" class="field-error" role="alert" aria-live="polite"></span>
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
@@ -438,7 +438,7 @@ function handleItemDrawingSelection(event) {
 
     files.forEach(file => {
         itemModalState.pendingDrawings.push({
-            tempId: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}-${file.size}`,
+            tempId: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${++itemDrawingTempIdCounter}-${file.size}`,
             file,
             name: file.name,
             size: file.size,
@@ -490,7 +490,10 @@ async function readFileAsDataUrl(file) {
     return await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error(`Failed to read file ${getSafeFileLabel(file.name)}: ${reader.error?.message || 'File read operation failed'}`));
+        reader.onerror = () => {
+            const detail = reader.error?.message ? ` (${reader.error.message})` : '';
+            reject(new Error(`Failed to read file ${getSafeFileLabel(file.name)}${detail}`));
+        };
         reader.readAsDataURL(file);
     });
 }
@@ -588,7 +591,7 @@ async function saveItem(id) {
 
         if (itemModalState.pendingDrawings.length > 0) {
             if (!itemId) {
-                throw new Error(t('error.not_found'));
+                throw new Error(t('error.missing_id'));
             }
             await persistPendingItemDrawings(itemId);
         } else {

@@ -50,6 +50,7 @@ const TRANSLATIONS = {
         'error.delete_failed': '❌ Delete failed: ',
         'error.load_failed': '❌ Load failed: ',
         'error.not_found': 'Record not found.',
+        'error.missing_id': 'Saved record ID was not returned.',
         // Status badges
         'status.offer': 'Offer',
         'status.order': 'Order',
@@ -364,6 +365,7 @@ const TRANSLATIONS = {
         'error.delete_failed': '❌ 删除失败：',
         'error.load_failed': '❌ 加载失败：',
         'error.not_found': '记录未找到。',
+        'error.missing_id': '保存成功，但未返回记录ID。',
         // Status badges
         'status.offer': '询价',
         'status.order': '订单',
