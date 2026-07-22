@@ -1,10 +1,10 @@
 // ===== LZN ERP 설정 파일 =====
 
 const CONFIG = {
-    // Supabase 설정 (나중에 실제 값으로 변경)
+    // Supabase 설정
     supabase: {
-        url: 'https://snyvexlqpxpqjswizszz.supabase.co/rest/v1/',
-        anonKey: 'sb_publishable_wEQsmWUREF_lKiYm27jF_g_MlAEiomd'
+        url: 'https://snyvexlqpxpqjswizszz.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNueXZleGxxcHhwcWpzd2l6c3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEzOTEwNzgsImV4cCI6MjAzNjk2NzA3OH0.sb_publishable_wEQsmWUREF_lKiYm27jF_g_MlAEiomd'
     },
     
     // 회사 정보 (LZN MEDICAL)
@@ -41,12 +41,13 @@ var currentUser = null;
 function initSupabase() {
     if (supabase) return supabase;
     if (!CONFIG.supabase.url || CONFIG.supabase.url === '') {
-        console.warn('⚠️ Supabase URL이 설정되지 않았습니다. 샘플 데이터로 동작합니다.');
+        console.warn('⚠️ Supabase URL이 설정되지 않았습니다.');
         return null;
     }
     try {
         const { createClient } = window.supabase;
         supabase = createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+        console.log('✅ Supabase 초기화 완료');
         return supabase;
     } catch (e) {
         console.warn('⚠️ Supabase 초기화 실패:', e.message);
@@ -115,32 +116,145 @@ function getStatusBadge(status) {
     return `<span class="badge ${info.class}">${info.label}</span>`;
 }
 
-// ===== Supabase CRUD 헬퍼 (샘플 데이터용) =====
-async function dbInsert(table, data) {
-    console.log('📝 dbInsert:', table, data);
-    // 샘플 데이터면 그냥 반환
-    return { data: [data], error: null };
+// ===== Supabase CRUD 헬퍼 (실제 구현) =====
+async function dbSelect(table, filters = {}) {
+    if (!supabase) {
+        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
+        return { data: [], error: 'Supabase not initialized' };
+    }
+    
+    try {
+        console.log('📊 dbSelect:', table, filters);
+        let query = supabase.from(table).select('*');
+        
+        // 필터 적용
+        Object.keys(filters).forEach(key => {
+            if (filters[key] !== null && filters[key] !== undefined) {
+                query = query.eq(key, filters[key]);
+            }
+        });
+        
+        const { data, error } = await query;
+        
+        if (error) {
+            console.error('❌ dbSelect 에러:', error);
+            throw error;
+        }
+        
+        console.log('✅ dbSelect 성공:', data?.length || 0, '개 항목');
+        return { data: data || [], error: null };
+    } catch (e) {
+        console.error('❌ dbSelect 예외:', e.message);
+        return { data: [], error: e.message };
+    }
 }
 
-async function dbSelect(table, query = {}) {
-    console.log('📊 dbSelect:', table, query);
-    // 샘플 데이터면 빈 배열 반환
-    return { data: [], error: null };
+async function dbInsert(table, data) {
+    if (!supabase) {
+        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
+        return { data: null, error: 'Supabase not initialized' };
+    }
+    
+    try {
+        console.log('📝 dbInsert:', table, data);
+        const { data: result, error } = await supabase
+            .from(table)
+            .insert([data])
+            .select();
+        
+        if (error) {
+            console.error('❌ dbInsert 에러:', error);
+            throw error;
+        }
+        
+        console.log('✅ dbInsert 성공');
+        return { data: result, error: null };
+    } catch (e) {
+        console.error('❌ dbInsert 예외:', e.message);
+        return { data: null, error: e.message };
+    }
 }
 
 async function dbUpdate(table, id, data) {
-    console.log('🔄 dbUpdate:', table, id, data);
-    return { data: [data], error: null };
+    if (!supabase) {
+        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
+        return { data: null, error: 'Supabase not initialized' };
+    }
+    
+    try {
+        console.log('🔄 dbUpdate:', table, id, data);
+        const { data: result, error } = await supabase
+            .from(table)
+            .update(data)
+            .eq('id', id)
+            .select();
+        
+        if (error) {
+            console.error('❌ dbUpdate 에러:', error);
+            throw error;
+        }
+        
+        console.log('✅ dbUpdate 성공');
+        return { data: result, error: null };
+    } catch (e) {
+        console.error('❌ dbUpdate 예외:', e.message);
+        return { data: null, error: e.message };
+    }
 }
 
 async function dbDelete(table, id) {
-    console.log('🗑️ dbDelete:', table, id);
-    return { error: null };
+    if (!supabase) {
+        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
+        return { error: 'Supabase not initialized' };
+    }
+    
+    try {
+        console.log('🗑️ dbDelete:', table, id);
+        const { error } = await supabase
+            .from(table)
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            console.error('❌ dbDelete 에러:', error);
+            throw error;
+        }
+        
+        console.log('✅ dbDelete 성공');
+        return { error: null };
+    } catch (e) {
+        console.error('❌ dbDelete 예외:', e.message);
+        return { error: e.message };
+    }
 }
 
 async function uploadFile(bucket, path, file) {
-    console.log('📤 uploadFile:', bucket, path, file);
-    return { url: 'https://example.com/uploaded-file.jpg' };
+    if (!supabase) {
+        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
+        return { url: null, error: 'Supabase not initialized' };
+    }
+    
+    try {
+        console.log('📤 uploadFile:', bucket, path);
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(path, file, { upsert: true });
+        
+        if (error) {
+            console.error('❌ uploadFile 에러:', error);
+            throw error;
+        }
+        
+        const { data: urlData } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(path);
+        
+        console.log('✅ uploadFile 성공');
+        return { url: urlData.publicUrl, error: null };
+    } catch (e) {
+        console.error('❌ uploadFile 예외:', e.message);
+        return { url: null, error: e.message };
+    }
 }
 
 // ===== 로컬 스토리지 헬퍼 =====
@@ -161,8 +275,8 @@ window.formatDate = formatDate;
 window.formatCurrency = formatCurrency;
 window.generateId = generateId;
 window.getStatusBadge = getStatusBadge;
-window.dbInsert = dbInsert;
 window.dbSelect = dbSelect;
+window.dbInsert = dbInsert;
 window.dbUpdate = dbUpdate;
 window.dbDelete = dbDelete;
 window.uploadFile = uploadFile;

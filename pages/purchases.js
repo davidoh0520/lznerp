@@ -1,167 +1,221 @@
 // ===== 매입 관리 페이지 =====
-async function renderPurchases(container) {
-    // 샘플 데이터
-    const purchases = [
-        { id: 1, po_number: 'PO2607-01', supplier: '深圳市星火精密科技', order_date: '2026-07-06', total_amount: 3700, status: 'order' },
-        { id: 2, po_number: 'PO2607-02', supplier: '上海精密机械', order_date: '2026-07-10', total_amount: 5200, status: 'received' },
-        { id: 3, po_number: 'PO2607-03', supplier: '深圳市星火精密科技', order_date: '2026-07-15', total_amount: 2850, status: 'offer' },
-    ];
-    
-    container.innerHTML = `
-        <div class="flex-between mb-16">
-            <h2>📥 매입 관리</h2>
-            <button class="btn-primary" onclick="openPurchaseForm()">+ 새 매입 등록</button>
-        </div>
-        <div class="card">
-            ${renderTable(
-                [
-                    { key: 'po_number', label: 'PO 번호' },
-                    { key: 'supplier', label: '공급사' },
-                    { key: 'order_date', label: '주문일', format: (v) => formatDate(v) },
-                    { key: 'total_amount', label: '금액', format: (v) => formatCurrency(v) },
-                    { key: 'status', label: '상태', format: (v) => getStatusBadge(v) }
-                ],
-                purchases,
-                (row) => `
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="viewPurchase(${row.id})">📄</button>
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="editPurchase(${row.id})">✏️</button>
-                    <button class="btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deletePurchase(${row.id})">🗑️</button>
-                `
-            )}
-        </div>
-    `;
-}
 
-// ===== 매입 등록 폼 =====
-function openPurchaseForm() {
-    openModal(`
-        <h2>새 매입 등록</h2>
-        <form id="purchaseForm" onsubmit="savePurchase(event)">
-            <div class="form-group">
-                <label>PO 번호 *</label>
-                <input type="text" id="purchasePoNumber" value="${generateId('PO')}" required>
-            </div>
-            <div class="form-group">
-                <label>공급사 *</label>
-                <select id="purchaseSupplier" required>
-                    <option value="">선택...</option>
-                    <option value="1">深圳市星火精密科技</option>
-                    <option value="2">上海精密机械</option>
-                    <option value="3">深圳电子有限公司</option>
+async function renderPurchases(container) {
+    try {
+        const { data: purchases } = await dbSelect('purchases');
+        
+        let html = `
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                <button onclick="openPurchaseModal()" class="btn-primary">➕ 새 매입 추가</button>
+                <select id="purchaseStatusFilter" onchange="filterPurchasesTable()" style="max-width: 150px;">
+                    <option value="">전체 상태</option>
+                    <option value="draft">임시</option>
+                    <option value="order">오더</option>
+                    <option value="received">입고완료</option>
+                    <option value="completed">완료</option>
                 </select>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>주문일 *</label>
-                    <input type="date" id="purchaseDate" value="${new Date().toISOString().slice(0,10)}" required>
-                </div>
-                <div class="form-group">
-                    <label>상태</label>
-                    <select id="purchaseStatus">
-                        <option value="offer">오퍼</option>
-                        <option value="order" selected>오더</option>
-                        <option value="received">입고완료</option>
-                        <option value="completed">완료</option>
-                    </select>
-                </div>
+            
+            <div id="purchasesTableContainer">
+                ${renderPurchasesTable(purchases || [])}
             </div>
+        `;
+        
+        container.innerHTML = html;
+        
+    } catch (e) {
+        console.error('매입 렌더링 에러:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 매입 로드 실패: ${e.message}</p>`;
+    }
+}
+
+function renderPurchasesTable(purchases) {
+    if (!purchases || purchases.length === 0) {
+        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 매입 정보가 없습니다.</p>';
+    }
+    
+    let html = `
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>PO 번호</th>
+                        <th>거래처</th>
+                        <th>상태</th>
+                        <th>PO 날짜</th>
+                        <th>배송 예정일</th>
+                        <th>합계</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    purchases.forEach(purchase => {
+        html += `
+            <tr>
+                <td><strong>${purchase.po_number}</strong></td>
+                <td>${purchase.partner_id || '-'}</td>
+                <td>${getStatusBadge(purchase.status)}</td>
+                <td>${formatDate(purchase.po_date)}</td>
+                <td>${formatDate(purchase.delivery_date)}</td>
+                <td>${formatCurrency(purchase.total_amount, purchase.currency)}</td>
+                <td>
+                    <button onclick='editPurchase(${JSON.stringify(purchase).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
+                    <button onclick="deletePurchase(${purchase.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
+        </div>
+    `;
+    
+    return html;
+}
+
+function filterPurchasesTable() {
+    const status = document.getElementById('purchaseStatusFilter').value;
+    const rows = document.querySelectorAll('#purchasesTableContainer table tbody tr');
+    
+    rows.forEach(row => {
+        if (!status) {
+            row.style.display = '';
+        } else {
+            const statusCell = row.cells[2].textContent;
+            row.style.display = statusCell.includes(status) ? '' : 'none';
+        }
+    });
+}
+
+function openPurchaseModal(purchase = null) {
+    const isEdit = purchase !== null;
+    
+    const html = `
+        <h2>${isEdit ? '매입 수정' : '새 매입 추가'}</h2>
+        
+        <div class="form-group">
+            <label>PO 번호</label>
+            <input type="text" id="poNumber" value="${purchase?.po_number || ''}" 
+                ${isEdit ? 'disabled' : ''} placeholder="예: PO-240701-001">
+        </div>
+        
+        <div class="form-group">
+            <label>거래처</label>
+            <input type="number" id="partnerId" value="${purchase?.partner_id || ''}" placeholder="거래처 ID">
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>상태</label>
+                <select id="status">
+                    <option value="draft" ${purchase?.status === 'draft' ? 'selected' : ''}>임시</option>
+                    <option value="order" ${purchase?.status === 'order' ? 'selected' : ''}>오더</option>
+                    <option value="received" ${purchase?.status === 'received' ? 'selected' : ''}>입고완료</option>
+                    <option value="completed" ${purchase?.status === 'completed' ? 'selected' : ''}>완료</option>
+                </select>
+            </div>
+            
             <div class="form-group">
                 <label>통화</label>
-                <select id="purchaseCurrency">
-                    <option value="CNY">CNY</option>
-                    <option value="USD">USD</option>
-                    <option value="KRW">KRW</option>
+                <select id="currency">
+                    <option value="CNY" ${purchase?.currency === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
+                    <option value="USD" ${purchase?.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+                    <option value="EUR" ${purchase?.currency === 'EUR' ? 'selected' : ''}>EUR (€)</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>비고</label>
-                <textarea id="purchaseNote" rows="2"></textarea>
-            </div>
-            <h3 style="margin-top:20px;font-size:1rem;">📦 품목 추가</h3>
-            <div id="purchaseItemsContainer">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>품목</label>
-                        <select>
-                            <option>ARM BASE BOTAL</option>
-                            <option>ARM MAIN BODY</option>
-                            <option>Internal SMPS</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>수량</label>
-                        <input type="number" value="1" step="0.01">
-                    </div>
-                </div>
-            </div>
-            <button type="button" class="btn-secondary" onclick="addPurchaseItemRow()">+ 품목 추가</button>
-            
-            <div style="margin-top:20px;">
-                <button type="submit" class="btn-primary">💾 저장</button>
-                <button type="button" class="btn-secondary" onclick="closeModal()">취소</button>
-            </div>
-        </form>
-    `);
-}
-
-// ===== 품목 행 추가 =====
-function addPurchaseItemRow() {
-    const container = document.getElementById('purchaseItemsContainer');
-    const row = document.createElement('div');
-    row.className = 'form-row';
-    row.style.marginTop = '8px';
-    row.innerHTML = `
-        <div class="form-group">
-            <label>품목</label>
-            <select>
-                <option>ARM BASE BOTAL</option>
-                <option>ARM MAIN BODY</option>
-                <option>Internal SMPS</option>
-            </select>
         </div>
-        <div class="form-group" style="display:flex;gap:8px;align-items:end;">
-            <div style="flex:1;">
-                <label>수량</label>
-                <input type="number" value="1" step="0.01">
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>PO 날짜</label>
+                <input type="date" id="poDate" value="${purchase?.po_date || ''}">
             </div>
-            <button type="button" class="btn-danger" style="padding:4px 12px;margin-bottom:4px;" onclick="this.closest('.form-row').remove()">✕</button>
+            
+            <div class="form-group">
+                <label>배송 예정일</label>
+                <input type="date" id="deliveryDate" value="${purchase?.delivery_date || ''}">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>합계 금액</label>
+            <input type="number" id="totalAmount" value="${purchase?.total_amount || ''}" placeholder="0.00" step="0.01">
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button onclick="savePurchase(${purchase?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
         </div>
     `;
-    container.appendChild(row);
+    
+    openModal(html);
 }
 
-// ===== 매입 저장 =====
-async function savePurchase(event) {
-    event.preventDefault();
+async function savePurchase(id) {
+    const poNumber = document.getElementById('poNumber').value.trim();
+    const partnerId = document.getElementById('partnerId').value;
+    const status = document.getElementById('status').value;
+    const currency = document.getElementById('currency').value;
+    const poDate = document.getElementById('poDate').value;
+    const deliveryDate = document.getElementById('deliveryDate').value;
+    const totalAmount = document.getElementById('totalAmount').value;
+    
+    if (!poNumber || !partnerId) {
+        alert('❌ PO 번호와 거래처는 필수입니다.');
+        return;
+    }
+    
     const data = {
-        po_number: document.getElementById('purchasePoNumber').value,
-        supplier: document.getElementById('purchaseSupplier').value,
-        order_date: document.getElementById('purchaseDate').value,
-        status: document.getElementById('purchaseStatus').value,
-        currency: document.getElementById('purchaseCurrency').value,
-        note: document.getElementById('purchaseNote').value
+        po_number: poNumber,
+        partner_id: parseInt(partnerId),
+        status: status,
+        currency: currency,
+        po_date: poDate || null,
+        delivery_date: deliveryDate || null,
+        total_amount: totalAmount ? parseFloat(totalAmount) : null
     };
     
-    console.log('저장할 매입:', data);
-    showToast('✅ 매입이 저장되었습니다!');
-    closeModal();
-    navigateTo('purchases');
-}
-
-// ===== 매입 조회 =====
-function viewPurchase(id) {
-    alert(`📄 매입 ID ${id} 상세 조회 (Supabase 연결 후 구현)`);
-}
-
-// ===== 매입 수정 =====
-function editPurchase(id) {
-    alert(`✏️ 매입 ID ${id} 수정 기능 (Supabase 연결 후 구현)`);
-}
-
-// ===== 매입 삭제 =====
-function deletePurchase(id) {
-    if (confirm(`매입 ID ${id}을(를) 삭제하시겠습니까?`)) {
-        alert(`🗑️ 매입 ID ${id} 삭제 완료`);
+    try {
+        let result;
+        if (id) {
+            result = await dbUpdate('purchases', id, data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 매입이 수정되었습니다.');
+        } else {
+            result = await dbInsert('purchases', data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 매입이 추가되었습니다.');
+        }
+        
+        closeModal();
         navigateTo('purchases');
+        
+    } catch (e) {
+        console.error('매입 저장 에러:', e);
+        alert(`❌ 저장 실패: ${e.message}`);
+    }
+}
+
+async function editPurchase(purchase) {
+    openPurchaseModal(purchase);
+}
+
+async function deletePurchase(id) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    
+    try {
+        const result = await dbDelete('purchases', id);
+        if (result.error) throw new Error(result.error);
+        
+        alert('✅ 매입이 삭제되었습니다.');
+        navigateTo('purchases');
+        
+    } catch (e) {
+        console.error('매입 삭제 에러:', e);
+        alert(`❌ 삭제 실패: ${e.message}`);
     }
 }

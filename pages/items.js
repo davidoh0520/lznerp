@@ -1,114 +1,200 @@
 // ===== 품목 관리 페이지 =====
+
 async function renderItems(container) {
-    // 샘플 데이터
-    const items = [
-        { id: 1, name: 'ARM BASE BOTAL', model: 'AL6061', hs_code: '8466.91-0000', unit: 'EA', purchase_price: 200, sale_price: 250 },
-        { id: 2, name: 'ARM MAIN BODY', model: 'AL6063', hs_code: '8466.91-0000', unit: 'EA', purchase_price: 100, sale_price: 130 },
-        { id: 3, name: 'Internal SMPS', model: 'SMPS-200', hs_code: '8504.40-9100', unit: 'EA', purchase_price: 800, sale_price: 1000 },
-    ];
+    try {
+        const { data: items } = await dbSelect('items');
+        
+        let html = `
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                <button onclick="openItemModal()" class="btn-primary">➕ 새 품목 추가</button>
+                <input type="text" id="itemSearch" placeholder="품목명 또는 코드 검색..." 
+                    style="flex: 1; max-width: 300px;"
+                    onkeyup="filterItemsTable()">
+            </div>
+            
+            <div id="itemsTableContainer">
+                ${renderItemsTable(items || [])}
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+    } catch (e) {
+        console.error('품목 렌더링 에러:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 품목 로드 실패: ${e.message}</p>`;
+    }
+}
+
+function renderItemsTable(items) {
+    if (!items || items.length === 0) {
+        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 품목이 없습니다.</p>';
+    }
     
-    container.innerHTML = `
-        <div class="flex-between mb-16">
-            <h2>📦 품목 관리</h2>
-            <button class="btn-primary" onclick="openItemForm()">+ 새 품목 등록</button>
-        </div>
-        <div class="card">
-            ${renderTable(
-                [
-                    { key: 'name', label: '품목명' },
-                    { key: 'model', label: '모델' },
-                    { key: 'hs_code', label: 'HS 코드' },
-                    { key: 'unit', label: '통관 단위' },
-                    { key: 'purchase_price', label: '매입가', format: (v) => formatCurrency(v) },
-                    { key: 'sale_price', label: '판매가', format: (v) => formatCurrency(v) }
-                ],
-                items,
-                (row) => `
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="editItem(${row.id})">✏️</button>
-                    <button class="btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deleteItem(${row.id})">🗑️</button>
-                `
-            )}
+    let html = `
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>품목 코드</th>
+                        <th>품목명</th>
+                        <th>HS 코드</th>
+                        <th>단위</th>
+                        <th>분류</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    items.forEach(item => {
+        html += `
+            <tr>
+                <td><strong>${item.item_code}</strong></td>
+                <td>${item.item_name}</td>
+                <td>${item.hs_code || '-'}</td>
+                <td>${item.unit || '-'}</td>
+                <td>${item.category || '-'}</td>
+                <td>
+                    <button onclick='editItem(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
+                    <button onclick="deleteItem(${item.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
         </div>
     `;
+    
+    return html;
 }
 
-// ===== 품목 등록 폼 =====
-function openItemForm() {
-    openModal(`
-        <h2>새 품목 등록</h2>
-        <form id="itemForm" onsubmit="saveItem(event)">
-            <div class="form-group">
-                <label>품목명 *</label>
-                <input type="text" id="itemName" required>
-            </div>
-            <div class="form-group">
-                <label>모델명</label>
-                <input type="text" id="itemModel">
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>HS 코드 *</label>
-                    <input type="text" id="itemHsCode" required placeholder="예: 8466.91-0000">
-                </div>
-                <div class="form-group">
-                    <label>통관 단위 *</label>
-                    <select id="itemUnit" required>
-                        <option value="KG">KG</option>
-                        <option value="EA">EA</option>
-                        <option value="SET">SET</option>
-                        <option value="M">M</option>
-                        <option value="BOX">BOX</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>매입가 (CNY)</label>
-                    <input type="number" id="itemPurchasePrice" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>판매가 (CNY)</label>
-                    <input type="number" id="itemSalePrice" step="0.01">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>규격/비고</label>
-                <textarea id="itemSpec" rows="2"></textarea>
-            </div>
-            <button type="submit" class="btn-primary">💾 저장</button>
-            <button type="button" class="btn-secondary" onclick="closeModal()">취소</button>
-        </form>
-    `);
+function filterItemsTable() {
+    const searchValue = document.getElementById('itemSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#itemsTableContainer table tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    });
 }
 
-// ===== 품목 저장 =====
-async function saveItem(event) {
-    event.preventDefault();
+function openItemModal(item = null) {
+    const isEdit = item !== null;
+    
+    const html = `
+        <h2>${isEdit ? '품목 수정' : '새 품목 추가'}</h2>
+        
+        <div class="form-group">
+            <label>품목 코드</label>
+            <input type="text" id="itemCode" value="${item?.item_code || ''}" 
+                ${isEdit ? 'disabled' : ''} placeholder="예: ITEM-001">
+        </div>
+        
+        <div class="form-group">
+            <label>품목명</label>
+            <input type="text" id="itemName" value="${item?.item_name || ''}" placeholder="의료 기계 부품">
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>HS 코드</label>
+                <input type="text" id="hsCode" value="${item?.hs_code || ''}" placeholder="8466.91-0000">
+            </div>
+            
+            <div class="form-group">
+                <label>단위</label>
+                <select id="unit">
+                    <option value="EA" ${item?.unit === 'EA' ? 'selected' : ''}>개 (EA)</option>
+                    <option value="KG" ${item?.unit === 'KG' ? 'selected' : ''}>킬로그램 (KG)</option>
+                    <option value="SET" ${item?.unit === 'SET' ? 'selected' : ''}>세트 (SET)</option>
+                    <option value="BOX" ${item?.unit === 'BOX' ? 'selected' : ''}>상자 (BOX)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>분류</label>
+            <input type="text" id="category" value="${item?.category || ''}" placeholder="전자부품">
+        </div>
+        
+        <div class="form-group">
+            <label>설명</label>
+            <textarea id="description" placeholder="상세 설명...">${item?.description || ''}</textarea>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button onclick="saveItem(${item?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+        </div>
+    `;
+    
+    openModal(html);
+}
+
+async function saveItem(id) {
+    const code = document.getElementById('itemCode').value.trim();
+    const name = document.getElementById('itemName').value.trim();
+    const hsCode = document.getElementById('hsCode').value.trim();
+    const unit = document.getElementById('unit').value;
+    const category = document.getElementById('category').value.trim();
+    const description = document.getElementById('description').value.trim();
+    
+    if (!code || !name) {
+        alert('❌ 품목 코드와 품목명은 필수입니다.');
+        return;
+    }
+    
     const data = {
-        name: document.getElementById('itemName').value,
-        model: document.getElementById('itemModel').value,
-        hs_code: document.getElementById('itemHsCode').value,
-        unit: document.getElementById('itemUnit').value,
-        purchase_price: parseFloat(document.getElementById('itemPurchasePrice').value) || 0,
-        sale_price: parseFloat(document.getElementById('itemSalePrice').value) || 0,
-        spec: document.getElementById('itemSpec').value
+        item_code: code,
+        item_name: name,
+        hs_code: hsCode,
+        unit: unit,
+        category: category,
+        description: description
     };
     
-    console.log('저장할 품목:', data);
-    showToast('✅ 품목이 저장되었습니다! (실제 저장은 Supabase 연결 후 가능)');
-    closeModal();
-    navigateTo('items');
-}
-
-// ===== 품목 수정 =====
-function editItem(id) {
-    alert(`✏️ 품목 ID ${id} 수정 기능 (Supabase 연결 후 구현)`);
-}
-
-// ===== 품목 삭제 =====
-function deleteItem(id) {
-    if (confirm(`품목 ID ${id}을(를) 삭제하시겠습니까?`)) {
-        alert(`🗑️ 품목 ID ${id} 삭제 완료 (Supabase 연결 후 실제 삭제)`);
+    try {
+        let result;
+        if (id) {
+            // 수정
+            result = await dbUpdate('items', id, data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 품목이 수정되었습니다.');
+        } else {
+            // 새로 추가
+            result = await dbInsert('items', data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 품목이 추가되었습니다.');
+        }
+        
+        closeModal();
         navigateTo('items');
+        
+    } catch (e) {
+        console.error('품목 저장 에러:', e);
+        alert(`❌ 저장 실패: ${e.message}`);
+    }
+}
+
+async function editItem(item) {
+    openItemModal(item);
+}
+
+async function deleteItem(id) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    
+    try {
+        const result = await dbDelete('items', id);
+        if (result.error) throw new Error(result.error);
+        
+        alert('✅ 품목이 삭제되었습니다.');
+        navigateTo('items');
+        
+    } catch (e) {
+        console.error('품목 삭제 에러:', e);
+        alert(`❌ 삭제 실패: ${e.message}`);
     }
 }

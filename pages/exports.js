@@ -1,190 +1,237 @@
 // ===== 수출 관리 페이지 =====
-async function renderExports(container) {
-    // 샘플 데이터
-    const exports = [
-        { id: 1, export_number: 'EXP2607-01', buyer: 'iNEER Co., Ltd.', contract_date: '2026-07-13', total_amount: 321365, status: 'invoiced' },
-        { id: 2, export_number: 'EXP2607-02', buyer: 'iNEER Co., Ltd.', contract_date: '2026-07-08', total_amount: 28645, status: 'shipped' },
-        { id: 3, export_number: 'EXP2607-03', buyer: 'MediTech Korea', contract_date: '2026-07-20', total_amount: 125000, status: 'contract' },
-    ];
-    
-    container.innerHTML = `
-        <div class="flex-between mb-16">
-            <h2>📤 수출 관리</h2>
-            <button class="btn-primary" onclick="openExportForm()">+ 새 수출 등록</button>
-        </div>
-        <div class="card">
-            ${renderTable(
-                [
-                    { key: 'export_number', label: '수출 번호' },
-                    { key: 'buyer', label: '바이어' },
-                    { key: 'contract_date', label: '계약일', format: (v) => formatDate(v) },
-                    { key: 'total_amount', label: '금액', format: (v) => formatCurrency(v) },
-                    { key: 'status', label: '상태', format: (v) => getStatusBadge(v) }
-                ],
-                exports,
-                (row) => `
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="viewExport(${row.id})">📄</button>
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="editExport(${row.id})">✏️</button>
-                    <button class="btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deleteExport(${row.id})">🗑️</button>
-                `
-            )}
-        </div>
-    `;
-}
 
-// ===== 수출 등록 폼 =====
-function openExportForm() {
-    openModal(`
-        <h2>새 수출 등록</h2>
-        <form id="exportForm" onsubmit="saveExport(event)">
-            <div class="form-group">
-                <label>수출 번호 *</label>
-                <input type="text" id="exportNumber" value="${generateId('EXP')}" required>
-            </div>
-            <div class="form-group">
-                <label>바이어 *</label>
-                <select id="exportBuyer" required>
-                    <option value="">선택...</option>
-                    <option value="1">iNEER Co., Ltd.</option>
-                    <option value="2">MediTech Korea</option>
-                    <option value="3">Global Medical Inc.</option>
+async function renderExports(container) {
+    try {
+        const { data: exports } = await dbSelect('exports');
+        
+        let html = `
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                <button onclick="openExportModal()" class="btn-primary">➕ 새 수출 추가</button>
+                <select id="exportStatusFilter" onchange="filterExportsTable()" style="max-width: 150px;">
+                    <option value="">전체 상태</option>
+                    <option value="draft">임시</option>
+                    <option value="contract">계약</option>
+                    <option value="shipped">선적</option>
+                    <option value="completed">완료</option>
                 </select>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>계약일 *</label>
-                    <input type="date" id="exportDate" value="${new Date().toISOString().slice(0,10)}" required>
-                </div>
-                <div class="form-group">
-                    <label>상태</label>
-                    <select id="exportStatus">
-                        <option value="draft">임시</option>
-                        <option value="contract" selected>계약</option>
-                        <option value="shipped">선적</option>
-                        <option value="invoiced">인보이스발행</option>
-                        <option value="completed">완료</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Incoterms</label>
-                    <select id="exportIncoterms">
-                        <option value="CIF">CIF</option>
-                        <option value="FOB">FOB</option>
-                        <option value="EXW">EXW</option>
-                        <option value="DDP">DDP</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>통화</label>
-                    <select id="exportCurrency">
-                        <option value="CNY">CNY</option>
-                        <option value="USD">USD</option>
-                        <option value="KRW">KRW</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>선적지</label>
-                <input type="text" id="exportPortLoading" placeholder="Port of Loading" value="Shanghai, China">
-            </div>
-            <div class="form-group">
-                <label>도착지</label>
-                <input type="text" id="exportPortDischarge" placeholder="Port of Discharge" value="Incheon, Korea">
-            </div>
-            <div class="form-group">
-                <label>비고</label>
-                <textarea id="exportNote" rows="2"></textarea>
-            </div>
-            <h3 style="margin-top:20px;font-size:1rem;">📦 수출 품목</h3>
-            <div id="exportItemsContainer">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>품목</label>
-                        <select>
-                            <option>Mechanical Part (HS:8466.91)</option>
-                            <option>Internal SMPS (HS:8504.40)</option>
-                            <option>Plastic Part (HS:8466.91)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>수량 (KG)</label>
-                        <input type="number" value="1" step="0.01">
-                    </div>
-                </div>
-            </div>
-            <button type="button" class="btn-secondary" onclick="addExportItemRow()">+ 품목 추가</button>
             
-            <div style="margin-top:20px;">
-                <button type="submit" class="btn-primary">💾 저장</button>
-                <button type="button" class="btn-secondary" onclick="closeModal()">취소</button>
+            <div id="exportsTableContainer">
+                ${renderExportsTable(exports || [])}
             </div>
-        </form>
-    `);
+        `;
+        
+        container.innerHTML = html;
+        
+    } catch (e) {
+        console.error('수출 렌더링 에러:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 수출 로드 실패: ${e.message}</p>`;
+    }
 }
 
-// ===== 수출 품목 행 추가 =====
-function addExportItemRow() {
-    const container = document.getElementById('exportItemsContainer');
-    const row = document.createElement('div');
-    row.className = 'form-row';
-    row.style.marginTop = '8px';
-    row.innerHTML = `
-        <div class="form-group">
-            <label>품목</label>
-            <select>
-                <option>Mechanical Part (HS:8466.91)</option>
-                <option>Internal SMPS (HS:8504.40)</option>
-                <option>Plastic Part (HS:8466.91)</option>
-            </select>
-        </div>
-        <div class="form-group" style="display:flex;gap:8px;align-items:end;">
-            <div style="flex:1;">
-                <label>수량</label>
-                <input type="number" value="1" step="0.01">
-            </div>
-            <button type="button" class="btn-danger" style="padding:4px 12px;margin-bottom:4px;" onclick="this.closest('.form-row').remove()">✕</button>
+function renderExportsTable(exports) {
+    if (!exports || exports.length === 0) {
+        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 수출 정보가 없습니다.</p>';
+    }
+    
+    let html = `
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>수출 코드</th>
+                        <th>거래처</th>
+                        <th>상태</th>
+                        <th>수출 날짜</th>
+                        <th>선적일</th>
+                        <th>합계</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    exports.forEach(exp => {
+        html += `
+            <tr>
+                <td><strong>${exp.export_code}</strong></td>
+                <td>${exp.partner_id || '-'}</td>
+                <td>${getStatusBadge(exp.status)}</td>
+                <td>${formatDate(exp.export_date)}</td>
+                <td>${formatDate(exp.shipment_date)}</td>
+                <td>${formatCurrency(exp.total_amount, exp.currency)}</td>
+                <td>
+                    <button onclick='editExport(${JSON.stringify(exp).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
+                    <button onclick="deleteExport(${exp.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
         </div>
     `;
-    container.appendChild(row);
+    
+    return html;
 }
 
-// ===== 수출 저장 =====
-async function saveExport(event) {
-    event.preventDefault();
+function filterExportsTable() {
+    const status = document.getElementById('exportStatusFilter').value;
+    const rows = document.querySelectorAll('#exportsTableContainer table tbody tr');
+    
+    rows.forEach(row => {
+        if (!status) {
+            row.style.display = '';
+        } else {
+            const statusCell = row.cells[2].textContent;
+            row.style.display = statusCell.includes(status) ? '' : 'none';
+        }
+    });
+}
+
+function openExportModal(exp = null) {
+    const isEdit = exp !== null;
+    
+    const html = `
+        <h2>${isEdit ? '수출 수정' : '새 수출 추가'}</h2>
+        
+        <div class="form-group">
+            <label>수출 코드</label>
+            <input type="text" id="exportCode" value="${exp?.export_code || ''}" 
+                ${isEdit ? 'disabled' : ''} placeholder="예: EXP-240701-001">
+        </div>
+        
+        <div class="form-group">
+            <label>거래처</label>
+            <input type="number" id="partnerId" value="${exp?.partner_id || ''}" placeholder="거래처 ID">
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>상태</label>
+                <select id="status">
+                    <option value="draft" ${exp?.status === 'draft' ? 'selected' : ''}>임시</option>
+                    <option value="contract" ${exp?.status === 'contract' ? 'selected' : ''}>계약</option>
+                    <option value="shipped" ${exp?.status === 'shipped' ? 'selected' : ''}>선적</option>
+                    <option value="completed" ${exp?.status === 'completed' ? 'selected' : ''}>완료</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>통화</label>
+                <select id="currency">
+                    <option value="CNY" ${exp?.currency === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
+                    <option value="USD" ${exp?.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+                    <option value="EUR" ${exp?.currency === 'EUR' ? 'selected' : ''}>EUR (€)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>수출 날짜</label>
+                <input type="date" id="exportDate" value="${exp?.export_date || ''}">
+            </div>
+            
+            <div class="form-group">
+                <label>선적일</label>
+                <input type="date" id="shipmentDate" value="${exp?.shipment_date || ''}">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>합계 금액</label>
+                <input type="number" id="totalAmount" value="${exp?.total_amount || ''}" placeholder="0.00" step="0.01">
+            </div>
+            
+            <div class="form-group">
+                <label>Incoterms</label>
+                <select id="incoterms">
+                    <option value="" ${!exp?.incoterms ? 'selected' : ''}>선택</option>
+                    <option value="FOB" ${exp?.incoterms === 'FOB' ? 'selected' : ''}>FOB</option>
+                    <option value="CIF" ${exp?.incoterms === 'CIF' ? 'selected' : ''}>CIF</option>
+                    <option value="CFR" ${exp?.incoterms === 'CFR' ? 'selected' : ''}>CFR</option>
+                    <option value="EXW" ${exp?.incoterms === 'EXW' ? 'selected' : ''}>EXW</option>
+                    <option value="DDP" ${exp?.incoterms === 'DDP' ? 'selected' : ''}>DDP</option>
+                </select>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button onclick="saveExport(${exp?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+        </div>
+    `;
+    
+    openModal(html);
+}
+
+async function saveExport(id) {
+    const exportCode = document.getElementById('exportCode').value.trim();
+    const partnerId = document.getElementById('partnerId').value;
+    const status = document.getElementById('status').value;
+    const currency = document.getElementById('currency').value;
+    const exportDate = document.getElementById('exportDate').value;
+    const shipmentDate = document.getElementById('shipmentDate').value;
+    const totalAmount = document.getElementById('totalAmount').value;
+    const incoterms = document.getElementById('incoterms').value;
+    
+    if (!exportCode || !partnerId) {
+        alert('❌ 수출 코드와 거래처는 필수입니다.');
+        return;
+    }
+    
     const data = {
-        export_number: document.getElementById('exportNumber').value,
-        buyer: document.getElementById('exportBuyer').value,
-        contract_date: document.getElementById('exportDate').value,
-        status: document.getElementById('exportStatus').value,
-        incoterms: document.getElementById('exportIncoterms').value,
-        currency: document.getElementById('exportCurrency').value,
-        port_loading: document.getElementById('exportPortLoading').value,
-        port_discharge: document.getElementById('exportPortDischarge').value,
-        note: document.getElementById('exportNote').value
+        export_code: exportCode,
+        partner_id: parseInt(partnerId),
+        status: status,
+        currency: currency,
+        export_date: exportDate || null,
+        shipment_date: shipmentDate || null,
+        total_amount: totalAmount ? parseFloat(totalAmount) : null,
+        incoterms: incoterms || null
     };
     
-    console.log('저장할 수출:', data);
-    showToast('✅ 수출이 저장되었습니다!');
-    closeModal();
-    navigateTo('exports');
-}
-
-// ===== 수출 조회 =====
-function viewExport(id) {
-    alert(`📄 수출 ID ${id} 상세 조회 (Supabase 연결 후 구현)`);
-}
-
-// ===== 수출 수정 =====
-function editExport(id) {
-    alert(`✏️ 수출 ID ${id} 수정 기능 (Supabase 연결 후 구현)`);
-}
-
-// ===== 수출 삭제 =====
-function deleteExport(id) {
-    if (confirm(`수출 ID ${id}을(를) 삭제하시겠습니까?`)) {
-        alert(`🗑️ 수출 ID ${id} 삭제 완료`);
+    try {
+        let result;
+        if (id) {
+            result = await dbUpdate('exports', id, data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 수출이 수정되었습니다.');
+        } else {
+            result = await dbInsert('exports', data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 수출이 추가되었습니다.');
+        }
+        
+        closeModal();
         navigateTo('exports');
+        
+    } catch (e) {
+        console.error('수출 저장 에러:', e);
+        alert(`❌ 저장 실패: ${e.message}`);
+    }
+}
+
+async function editExport(exp) {
+    openExportModal(exp);
+}
+
+async function deleteExport(id) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    
+    try {
+        const result = await dbDelete('exports', id);
+        if (result.error) throw new Error(result.error);
+        
+        alert('✅ 수출이 삭제되었습니다.');
+        navigateTo('exports');
+        
+    } catch (e) {
+        console.error('수출 삭제 에러:', e);
+        alert(`❌ 삭제 실패: ${e.message}`);
     }
 }

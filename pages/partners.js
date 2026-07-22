@@ -1,126 +1,206 @@
 // ===== 거래처 관리 페이지 =====
+
 async function renderPartners(container) {
-    // 샘플 데이터
-    const partners = [
-        { id: 1, name: '深圳市星火精密科技有限公司', name_cn: '深圳市星火精密科技', type: 'supplier', country: '중국', contact: '장민', phone: '0755-1234-5678' },
-        { id: 2, name: 'iNEER Co., Ltd.', name_cn: '', type: 'buyer', country: '한국', contact: '김대리', phone: '+82-31-461-1125' },
-        { id: 3, name: '上海精密机械有限公司', name_cn: '上海精密机械', type: 'supplier', country: '중국', contact: '이과장', phone: '021-9876-5432' },
-    ];
+    try {
+        const { data: partners } = await dbSelect('partners');
+        
+        let html = `
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                <button onclick="openPartnerModal()" class="btn-primary">➕ 새 거래처 추가</button>
+                <input type="text" id="partnerSearch" placeholder="거래처명 또는 국가 검색..." 
+                    style="flex: 1; max-width: 300px;"
+                    onkeyup="filterPartnersTable()">
+            </div>
+            
+            <div id="partnersTableContainer">
+                ${renderPartnersTable(partners || [])}
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+    } catch (e) {
+        console.error('거래처 렌더링 에러:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 거래처 로드 실패: ${e.message}</p>`;
+    }
+}
+
+function renderPartnersTable(partners) {
+    if (!partners || partners.length === 0) {
+        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 거래처가 없습니다.</p>';
+    }
     
-    const typeMap = {
-        'supplier': '🏭 공급사',
-        'buyer': '🏢 바이어'
-    };
+    let html = `
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>거래처 코드</th>
+                        <th>거래처명</th>
+                        <th>국가</th>
+                        <th>담당자</th>
+                        <th>이메일</th>
+                        <th>전화</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
     
-    container.innerHTML = `
-        <div class="flex-between mb-16">
-            <h2>🏢 거래처 관리</h2>
-            <button class="btn-primary" onclick="openPartnerForm()">+ 새 거래처</button>
-        </div>
-        <div class="card">
-            ${renderTable(
-                [
-                    { key: 'name', label: '거래처명' },
-                    { key: 'name_cn', label: '중국어명' },
-                    { key: 'type', label: '유형', format: (v) => typeMap[v] || v },
-                    { key: 'country', label: '국가' },
-                    { key: 'contact', label: '담당자' },
-                    { key: 'phone', label: '연락처' }
-                ],
-                partners,
-                (row) => `
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" onclick="editPartner(${row.id})">✏️</button>
-                    <button class="btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deletePartner(${row.id})">🗑️</button>
-                `
-            )}
+    partners.forEach(partner => {
+        html += `
+            <tr>
+                <td><strong>${partner.partner_code}</strong></td>
+                <td>${partner.partner_name}</td>
+                <td>${partner.country || '-'}</td>
+                <td>${partner.contact_person || '-'}</td>
+                <td>${partner.email || '-'}</td>
+                <td>${partner.phone || '-'}</td>
+                <td>
+                    <button onclick='editPartner(${JSON.stringify(partner).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
+                    <button onclick="deletePartner(${partner.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
         </div>
     `;
+    
+    return html;
 }
 
-// ===== 거래처 등록 폼 =====
-function openPartnerForm() {
-    openModal(`
-        <h2>새 거래처 등록</h2>
-        <form id="partnerForm" onsubmit="savePartner(event)">
+function filterPartnersTable() {
+    const searchValue = document.getElementById('partnerSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#partnersTableContainer table tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    });
+}
+
+function openPartnerModal(partner = null) {
+    const isEdit = partner !== null;
+    
+    const html = `
+        <h2>${isEdit ? '거래처 수정' : '새 거래처 추가'}</h2>
+        
+        <div class="form-group">
+            <label>거래처 코드</label>
+            <input type="text" id="partnerCode" value="${partner?.partner_code || ''}" 
+                ${isEdit ? 'disabled' : ''} placeholder="예: PARTNER-001">
+        </div>
+        
+        <div class="form-group">
+            <label>거래처명</label>
+            <input type="text" id="partnerName" value="${partner?.partner_name || ''}" placeholder="거래처 이름">
+        </div>
+        
+        <div class="form-row">
             <div class="form-group">
-                <label>거래처명 *</label>
-                <input type="text" id="partnerName" required>
+                <label>국가</label>
+                <input type="text" id="country" value="${partner?.country || ''}" placeholder="중국, 미국 등">
             </div>
+            
             <div class="form-group">
-                <label>중국어명</label>
-                <input type="text" id="partnerNameCn" placeholder="중국어 명칭 (있는 경우)">
+                <label>담당자</label>
+                <input type="text" id="contactPerson" value="${partner?.contact_person || ''}" placeholder="담당자명">
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>유형 *</label>
-                    <select id="partnerType" required>
-                        <option value="supplier">🏭 공급사</option>
-                        <option value="buyer">🏢 바이어</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>국가</label>
-                    <input type="text" id="partnerCountry" value="중국">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>담당자</label>
-                    <input type="text" id="partnerContact">
-                </div>
-                <div class="form-group">
-                    <label>연락처</label>
-                    <input type="text" id="partnerPhone">
-                </div>
-            </div>
+        </div>
+        
+        <div class="form-row">
             <div class="form-group">
                 <label>이메일</label>
-                <input type="email" id="partnerEmail">
+                <input type="email" id="email" value="${partner?.email || ''}" placeholder="example@company.com">
             </div>
+            
             <div class="form-group">
-                <label>주소</label>
-                <textarea id="partnerAddress" rows="2"></textarea>
+                <label>전화</label>
+                <input type="tel" id="phone" value="${partner?.phone || ''}" placeholder="+86-130-6261-9570">
             </div>
-            <div class="form-group">
-                <label>사업자등록번호</label>
-                <input type="text" id="partnerTaxId">
-            </div>
-            <button type="submit" class="btn-primary">💾 저장</button>
-            <button type="button" class="btn-secondary" onclick="closeModal()">취소</button>
-        </form>
-    `);
+        </div>
+        
+        <div class="form-group">
+            <label>주소</label>
+            <textarea id="address" placeholder="회사 주소">${partner?.address || ''}</textarea>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button onclick="savePartner(${partner?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+        </div>
+    `;
+    
+    openModal(html);
 }
 
-// ===== 거래처 저장 =====
-async function savePartner(event) {
-    event.preventDefault();
+async function savePartner(id) {
+    const code = document.getElementById('partnerCode').value.trim();
+    const name = document.getElementById('partnerName').value.trim();
+    const country = document.getElementById('country').value.trim();
+    const contactPerson = document.getElementById('contactPerson').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const address = document.getElementById('address').value.trim();
+    
+    if (!code || !name) {
+        alert('❌ 거래처 코드와 거래처명은 필수입니다.');
+        return;
+    }
+    
     const data = {
-        name: document.getElementById('partnerName').value,
-        name_cn: document.getElementById('partnerNameCn').value,
-        type: document.getElementById('partnerType').value,
-        country: document.getElementById('partnerCountry').value,
-        contact: document.getElementById('partnerContact').value,
-        phone: document.getElementById('partnerPhone').value,
-        email: document.getElementById('partnerEmail').value,
-        address: document.getElementById('partnerAddress').value,
-        tax_id: document.getElementById('partnerTaxId').value
+        partner_code: code,
+        partner_name: name,
+        country: country,
+        contact_person: contactPerson,
+        email: email,
+        phone: phone,
+        address: address
     };
     
-    console.log('저장할 거래처:', data);
-    showToast('✅ 거래처가 저장되었습니다!');
-    closeModal();
-    navigateTo('partners');
-}
-
-// ===== 거래처 수정 =====
-function editPartner(id) {
-    alert(`✏️ 거래처 ID ${id} 수정 기능 (Supabase 연결 후 구현)`);
-}
-
-// ===== 거래처 삭제 =====
-function deletePartner(id) {
-    if (confirm(`거래처 ID ${id}을(를) 삭제하시겠습니까?`)) {
-        alert(`🗑️ 거래처 ID ${id} 삭제 완료`);
+    try {
+        let result;
+        if (id) {
+            // 수정
+            result = await dbUpdate('partners', id, data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 거래처가 수정되었습니다.');
+        } else {
+            // 새로 추가
+            result = await dbInsert('partners', data);
+            if (result.error) throw new Error(result.error);
+            alert('✅ 거래처가 추가되었습니다.');
+        }
+        
+        closeModal();
         navigateTo('partners');
+        
+    } catch (e) {
+        console.error('거래처 저장 에러:', e);
+        alert(`❌ 저장 실패: ${e.message}`);
+    }
+}
+
+async function editPartner(partner) {
+    openPartnerModal(partner);
+}
+
+async function deletePartner(id) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    
+    try {
+        const result = await dbDelete('partners', id);
+        if (result.error) throw new Error(result.error);
+        
+        alert('✅ 거래처가 삭제되었습니다.');
+        navigateTo('partners');
+        
+    } catch (e) {
+        console.error('거래처 삭제 에러:', e);
+        alert(`❌ 삭제 실패: ${e.message}`);
     }
 }
