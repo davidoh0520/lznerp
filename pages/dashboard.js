@@ -141,7 +141,7 @@ function renderRecentTable(data, type) {
 
 function initDashboardChart(exports) {
     const ctx = document.getElementById('dashboardChart');
-    if (!ctx) return;
+    if (!ctx || typeof Chart === 'undefined') return;
     
     const monthCounts = {};
     (exports || []).forEach(exp => {

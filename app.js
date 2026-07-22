@@ -61,7 +61,10 @@ function switchLang(lang) {
         settings: 'page.settings'
     };
     const titleKey = titles[currentPage];
-    if (titleKey) document.getElementById('pageTitle').textContent = t(titleKey);
+    if (titleKey) {
+        document.getElementById('pageTitle').setAttribute('data-i18n', titleKey);
+        document.getElementById('pageTitle').textContent = t(titleKey);
+    }
     // Re-render dynamic content
     navigateTo(currentPage);
 }
@@ -85,7 +88,9 @@ async function navigateTo(page) {
         documents: 'page.documents',
         settings: 'page.settings'
     };
-    document.getElementById('pageTitle').textContent = t(titles[page] || page);
+    const titleKey = titles[page] || page;
+    document.getElementById('pageTitle').setAttribute('data-i18n', titleKey);
+    document.getElementById('pageTitle').textContent = t(titleKey);
     
     // Load page content
     const content = document.getElementById('pageContent');
