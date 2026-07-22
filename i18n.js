@@ -565,8 +565,8 @@ const TRANSLATIONS = {
 
 // ===== i18n Core =====
 
-var LANG_KEY = 'lzn_lang';
-var _currentLang = 'en';
+const LANG_KEY = 'lzn_lang';
+let _currentLang = 'en';
 
 function getCurrentLang() {
     return _currentLang;
@@ -581,10 +581,10 @@ function setLang(lang) {
 }
 
 function t(key) {
-    var dict = TRANSLATIONS[_currentLang];
+    const dict = TRANSLATIONS[_currentLang];
     if (dict && dict[key] !== undefined) return dict[key];
     // Fallback to English
-    var en = TRANSLATIONS['en'];
+    const en = TRANSLATIONS['en'];
     if (en && en[key] !== undefined) return en[key];
     return key;
 }
@@ -592,19 +592,19 @@ function t(key) {
 // Apply translations to static HTML elements with data-i18n attribute
 function applyI18n() {
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
-        var key = el.getAttribute('data-i18n');
+        const key = el.getAttribute('data-i18n');
         el.textContent = t(key);
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
-        var key = el.getAttribute('data-i18n-placeholder');
+        const key = el.getAttribute('data-i18n-placeholder');
         el.placeholder = t(key);
     });
     document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
-        var key = el.getAttribute('data-i18n-title');
+        const key = el.getAttribute('data-i18n-title');
         document.title = t(key);
     });
     // Update language toggle button active state
-    var langBtns = document.querySelectorAll('.lang-btn');
+    const langBtns = document.querySelectorAll('.lang-btn');
     langBtns.forEach(function(btn) {
         btn.classList.toggle('active', btn.getAttribute('data-lang') === _currentLang);
     });
@@ -617,7 +617,7 @@ function getLocale() {
 
 // Initialize language from localStorage on load
 (function() {
-    var saved = localStorage.getItem(LANG_KEY);
+    const saved = localStorage.getItem(LANG_KEY);
     if (saved && TRANSLATIONS[saved]) {
         _currentLang = saved;
     } else {
