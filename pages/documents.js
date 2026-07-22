@@ -1,4 +1,4 @@
-// ===== 서류 관리 페이지 =====
+// ===== Documents Page =====
 
 async function renderDocuments(container) {
     try {
@@ -6,14 +6,14 @@ async function renderDocuments(container) {
         
         let html = `
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button onclick="openDocumentModal()" class="btn-primary">➕ 새 서류 추가</button>
+                <button onclick="openDocumentModal()" class="btn-primary">${t('documents.add')}</button>
                 <select id="docTypeFilter" onchange="filterDocumentsTable()" style="max-width: 200px;">
-                    <option value="">전체 서류 유형</option>
-                    <option value="invoice">인보이스</option>
-                    <option value="packing_list">패킹 리스트</option>
-                    <option value="bill_of_lading">선하증권</option>
-                    <option value="certificate_of_origin">원산지증명서</option>
-                    <option value="other">기타</option>
+                    <option value="">${t('documents.filter.all')}</option>
+                    <option value="invoice">${t('documents.type.invoice')}</option>
+                    <option value="packing_list">${t('documents.type.packing_list')}</option>
+                    <option value="bill_of_lading">${t('documents.type.bill_of_lading')}</option>
+                    <option value="certificate_of_origin">${t('documents.type.certificate_of_origin')}</option>
+                    <option value="other">${t('documents.type.other')}</option>
                 </select>
             </div>
             
@@ -25,14 +25,14 @@ async function renderDocuments(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('서류 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 서류 로드 실패: ${e.message}</p>`;
+        console.error('Documents render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
 function renderDocumentsTable(documents) {
     if (!documents || documents.length === 0) {
-        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 서류가 없습니다.</p>';
+        return `<p class="text-center" style="padding: 40px; color: var(--gray-500);">${t('documents.no_data')}</p>`;
     }
     
     let html = `
@@ -40,12 +40,12 @@ function renderDocumentsTable(documents) {
             <table>
                 <thead>
                     <tr>
-                        <th>서류번호</th>
-                        <th>서류 유형</th>
-                        <th>수출 ID</th>
-                        <th>작성일</th>
-                        <th>파일</th>
-                        <th>관리</th>
+                        <th>${t('documents.col.number')}</th>
+                        <th>${t('documents.col.type')}</th>
+                        <th>${t('documents.col.export_id')}</th>
+                        <th>${t('documents.col.date')}</th>
+                        <th>${t('documents.col.file')}</th>
+                        <th>${t('col.manage')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -53,11 +53,11 @@ function renderDocumentsTable(documents) {
     
     documents.forEach(doc => {
         const typeLabel = {
-            'invoice': '인보이스',
-            'packing_list': '패킹 리스트',
-            'bill_of_lading': '선하증권',
-            'certificate_of_origin': '원산지증명서',
-            'other': '기타'
+            'invoice': t('documents.type.invoice'),
+            'packing_list': t('documents.type.packing_list'),
+            'bill_of_lading': t('documents.type.bill_of_lading'),
+            'certificate_of_origin': t('documents.type.certificate_of_origin'),
+            'other': t('documents.type.other')
         }[doc.doc_type] || doc.doc_type;
         
         html += `
@@ -67,11 +67,11 @@ function renderDocumentsTable(documents) {
                 <td>${doc.export_id || '-'}</td>
                 <td>${formatDate(doc.created_at)}</td>
                 <td>
-                    ${doc.file_url ? `<a href="${doc.file_url}" target="_blank" class="btn-primary" style="padding: 4px 8px; font-size: 0.8rem; display: inline-block;">📥 다운로드</a>` : '-'}
+                    ${doc.file_url ? `<a href="${doc.file_url}" target="_blank" class="btn-primary" style="padding: 4px 8px; font-size: 0.8rem; display: inline-block;">${t('documents.btn.download')}</a>` : '-'}
                 </td>
                 <td>
-                    <button onclick='editDocument(${JSON.stringify(doc).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
-                    <button onclick="deleteDocument(${doc.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                    <button onclick='editDocument(${JSON.stringify(doc).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">${t('btn.edit')}</button>
+                    <button onclick="deleteDocument(${doc.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">${t('btn.delete')}</button>
                 </td>
             </tr>
         `;
@@ -104,40 +104,40 @@ function openDocumentModal(doc = null) {
     const isEdit = doc !== null;
     
     const html = `
-        <h2>${isEdit ? '서류 수정' : '새 서류 추가'}</h2>
+        <h2>${isEdit ? t('documents.modal.edit') : t('documents.modal.add')}</h2>
         
         <div class="form-group">
-            <label>서류번호</label>
+            <label>${t('documents.field.number')}</label>
             <input type="text" id="docNumber" value="${doc?.doc_number || ''}" 
-                ${isEdit ? 'disabled' : ''} placeholder="예: INV-240701-001">
+                ${isEdit ? 'disabled' : ''} placeholder="${t('documents.placeholder.number')}">
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>서류 유형</label>
+                <label>${t('documents.field.type')}</label>
                 <select id="docType">
-                    <option value="invoice" ${doc?.doc_type === 'invoice' ? 'selected' : ''}>인보이스</option>
-                    <option value="packing_list" ${doc?.doc_type === 'packing_list' ? 'selected' : ''}>패킹 리스트</option>
-                    <option value="bill_of_lading" ${doc?.doc_type === 'bill_of_lading' ? 'selected' : ''}>선하증권</option>
-                    <option value="certificate_of_origin" ${doc?.doc_type === 'certificate_of_origin' ? 'selected' : ''}>원산지증명서</option>
-                    <option value="other" ${doc?.doc_type === 'other' ? 'selected' : ''}>기타</option>
+                    <option value="invoice" ${doc?.doc_type === 'invoice' ? 'selected' : ''}>${t('documents.type.invoice')}</option>
+                    <option value="packing_list" ${doc?.doc_type === 'packing_list' ? 'selected' : ''}>${t('documents.type.packing_list')}</option>
+                    <option value="bill_of_lading" ${doc?.doc_type === 'bill_of_lading' ? 'selected' : ''}>${t('documents.type.bill_of_lading')}</option>
+                    <option value="certificate_of_origin" ${doc?.doc_type === 'certificate_of_origin' ? 'selected' : ''}>${t('documents.type.certificate_of_origin')}</option>
+                    <option value="other" ${doc?.doc_type === 'other' ? 'selected' : ''}>${t('documents.type.other')}</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>수출 ID</label>
-                <input type="number" id="exportId" value="${doc?.export_id || ''}" placeholder="수출 ID">
+                <label>${t('documents.field.export_id')}</label>
+                <input type="number" id="exportId" value="${doc?.export_id || ''}" placeholder="${t('documents.field.export_id')}">
             </div>
         </div>
         
         <div class="form-group">
-            <label>파일 URL</label>
-            <input type="url" id="fileUrl" value="${doc?.file_url || ''}" placeholder="https://example.com/document.pdf">
+            <label>${t('documents.field.file_url')}</label>
+            <input type="url" id="fileUrl" value="${doc?.file_url || ''}" placeholder="${t('documents.placeholder.file_url')}">
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button onclick="saveDocument(${doc?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
-            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+            <button onclick="saveDocument(${doc?.id || 'null'})" class="btn-primary" style="flex: 1;">${t('btn.save')}</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">${t('btn.cancel')}</button>
         </div>
     `;
     
@@ -151,7 +151,7 @@ async function saveDocument(id) {
     const fileUrl = document.getElementById('fileUrl').value.trim();
     
     if (!docNumber || !docType) {
-        alert('❌ 서류번호와 서류 유형은 필수입니다.');
+        alert(t('documents.required'));
         return;
     }
     
@@ -167,19 +167,19 @@ async function saveDocument(id) {
         if (id) {
             result = await dbUpdate('documents', id, data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 서류가 수정되었습니다.');
+            alert(t('documents.updated'));
         } else {
             result = await dbInsert('documents', data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 서류가 추가되었습니다.');
+            alert(t('documents.saved'));
         }
         
         closeModal();
         navigateTo('documents');
         
     } catch (e) {
-        console.error('서류 저장 에러:', e);
-        alert(`❌ 저장 실패: ${e.message}`);
+        console.error('Document save error:', e);
+        alert(`${t('error.save_failed')}${e.message}`);
     }
 }
 
@@ -188,17 +188,17 @@ async function editDocument(doc) {
 }
 
 async function deleteDocument(id) {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t('confirm.delete'))) return;
     
     try {
         const result = await dbDelete('documents', id);
         if (result.error) throw new Error(result.error);
         
-        alert('✅ 서류가 삭제되었습니다.');
+        alert(t('documents.deleted'));
         navigateTo('documents');
         
     } catch (e) {
-        console.error('서류 삭제 에러:', e);
-        alert(`❌ 삭제 실패: ${e.message}`);
+        console.error('Document delete error:', e);
+        alert(`${t('error.delete_failed')}${e.message}`);
     }
 }

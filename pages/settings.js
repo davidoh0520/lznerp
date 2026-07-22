@@ -1,105 +1,105 @@
-// ===== 설정 페이지 =====
+// ===== Settings Page =====
 
 async function renderSettings(container) {
     try {
         let html = `
             <div class="card">
-                <h2 style="margin-bottom: 20px;">⚙️ 설정</h2>
+                <h2 style="margin-bottom: 20px;">${t('settings.title')}</h2>
                 
                 <div style="border-bottom: 1px solid var(--gray-200); padding-bottom: 24px; margin-bottom: 24px;">
-                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">🏢 회사 정보</h3>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">${t('settings.company')}</h3>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label>회사명 (영문)</label>
+                            <label>${t('settings.company.name_en')}</label>
                             <input type="text" id="companyName" value="${CONFIG.company.name}" readonly>
                         </div>
                         <div class="form-group">
-                            <label>회사명 (중문)</label>
+                            <label>${t('settings.company.name_cn')}</label>
                             <input type="text" id="companyNameCn" value="${CONFIG.company.name_cn}" readonly>
                         </div>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label>세금번호</label>
+                            <label>${t('settings.company.tax_id')}</label>
                             <input type="text" id="taxId" value="${CONFIG.company.tax_id}" readonly>
                         </div>
                         <div class="form-group">
-                            <label>전화</label>
+                            <label>${t('settings.company.phone')}</label>
                             <input type="tel" id="phone" value="${CONFIG.company.phone}" readonly>
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>주소 (중문)</label>
+                        <label>${t('settings.company.address_cn')}</label>
                         <textarea id="address" readonly>${CONFIG.company.address}</textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label>주소 (영문)</label>
+                        <label>${t('settings.company.address_en')}</label>
                         <textarea id="addressEn" readonly>${CONFIG.company.address_en}</textarea>
                     </div>
                 </div>
                 
                 <div style="border-bottom: 1px solid var(--gray-200); padding-bottom: 24px; margin-bottom: 24px;">
-                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">🏦 은행 정보</h3>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">${t('settings.bank')}</h3>
                     
                     <div class="form-group">
-                        <label>은행명</label>
+                        <label>${t('settings.bank.name')}</label>
                         <input type="text" id="bankName" value="${CONFIG.company.bank}" readonly>
                     </div>
                     
                     <div class="form-group">
-                        <label>은행명 (영문)</label>
+                        <label>${t('settings.bank.name_en')}</label>
                         <input type="text" id="bankNameEn" value="${CONFIG.company.bank_en}" readonly>
                     </div>
                     
                     <div class="form-group">
-                        <label>은행 주소</label>
+                        <label>${t('settings.bank.address')}</label>
                         <textarea id="bankAddress" readonly>${CONFIG.company.bank_address}</textarea>
                     </div>
                     
                     <div class="grid-3">
                         <div class="form-group">
-                            <label>계좌 (CNY)</label>
+                            <label>${t('settings.bank.account_cny')}</label>
                             <input type="text" id="accountCny" value="${CONFIG.company.bank_account_cny}" readonly>
                         </div>
                         <div class="form-group">
-                            <label>계좌 (KRW)</label>
+                            <label>${t('settings.bank.account_krw')}</label>
                             <input type="text" id="accountKrw" value="${CONFIG.company.bank_account_krw}" readonly>
                         </div>
                         <div class="form-group">
-                            <label>계좌 (USD)</label>
+                            <label>${t('settings.bank.account_usd')}</label>
                             <input type="text" id="accountUsd" value="${CONFIG.company.bank_account_usd}" readonly>
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>SWIFT 코드</label>
+                        <label>${t('settings.bank.swift')}</label>
                         <input type="text" id="swift" value="${CONFIG.company.swift}" readonly>
                     </div>
                 </div>
                 
-                <div>
-                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">💾 데이터 관리</h3>
+                <div style="border-bottom: 1px solid var(--gray-200); padding-bottom: 24px; margin-bottom: 24px;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 16px;">${t('settings.data')}</h3>
                     
                     <div style="display: flex; gap: 12px;">
-                        <button onclick="exportData()" class="btn-primary">📥 데이터 내보내기 (JSON)</button>
-                        <button onclick="clearLocalData()" class="btn-danger">🗑️ 로컬 캐시 삭제</button>
+                        <button onclick="exportData()" class="btn-primary">${t('settings.data.export_btn')}</button>
+                        <button onclick="clearLocalData()" class="btn-danger">${t('settings.data.clear_btn')}</button>
                     </div>
                     
                     <div style="background: var(--gray-100); padding: 12px; border-radius: var(--radius); margin-top: 12px; font-size: 0.9rem; color: var(--gray-600);">
-                        <strong>ℹ️ 참고:</strong> 로컬 캐시 삭제는 브라우저에 저장된 임시 데이터만 삭제합니다. Supabase의 데이터는 유지됩니다.
+                        ${t('settings.data.note')}
                     </div>
                 </div>
                 
                 <div style="background: var(--gray-50); padding: 16px; border-radius: var(--radius); margin-top: 24px; border-left: 4px solid var(--warning);">
-                    <strong>ℹ️ 시스템 정보</strong>
+                    <strong>${t('settings.system')}</strong>
                     <p style="margin: 8px 0; font-size: 0.9rem; color: var(--gray-600);">
-                        <strong>앱 버전:</strong> 1.0.0<br>
-                        <strong>Supabase URL:</strong> ${CONFIG.supabase.url}<br>
-                        <strong>마지막 업데이트:</strong> ${new Date().toLocaleString('ko-KR')}
+                        <strong>${t('settings.system.version')}:</strong> 1.0.0<br>
+                        <strong>${t('settings.system.url')}:</strong> ${CONFIG.supabase.url}<br>
+                        <strong>${t('settings.system.updated')}:</strong> ${new Date().toLocaleString(getCurrentLang() === 'zh-CN' ? 'zh-CN' : 'en-US')}
                     </p>
                 </div>
             </div>
@@ -108,8 +108,8 @@ async function renderSettings(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('설정 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 설정 로드 실패: ${e.message}</p>`;
+        console.error('Settings render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
@@ -141,24 +141,23 @@ async function exportData() {
         link.click();
         URL.revokeObjectURL(url);
         
-        alert('✅ 데이터가 내보내졌습니다.');
+        alert(t('settings.data.exported'));
         
     } catch (e) {
-        console.error('데이터 내보내기 에러:', e);
-        alert(`❌ 내보내기 실패: ${e.message}`);
+        console.error('Data export error:', e);
+        alert(`${t('settings.export.failed')}${e.message}`);
     }
 }
 
 function clearLocalData() {
-    if (!confirm('로컬 캐시를 정말 삭제하시겠습니까?\n(Supabase의 데이터는 유지됩니다)')) return;
+    if (!confirm(t('settings.cache.confirm'))) return;
     
-    // localStorage에서 lzn_ 프리픽스로 시작하는 모든 항목 삭제
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
-        if (key.startsWith('lzn_')) {
+        if (key.startsWith('lzn_') && key !== 'lzn_lang') {
             localStorage.removeItem(key);
         }
     });
     
-    alert('✅ 로컬 캐시가 삭제되었습니다.');
+    alert(t('settings.cache.cleared'));
 }
