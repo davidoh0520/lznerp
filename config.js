@@ -37,6 +37,33 @@ const CONFIG = {
 var supabase = null;
 var currentUser = null;
 
+// ===== 로컬 데이터 저장소 초기화 =====
+function initLocalData() {
+    const data = {
+        items: [],
+        partners: [],
+        purchases: [],
+        exports: [],
+        payments: [],
+        documents: []
+    };
+    
+    Object.keys(data).forEach(key => {
+        const stored = localStorage.getItem(`lzn_${key}`);
+        if (stored) {
+            try {
+                data[key] = JSON.parse(stored);
+            } catch (e) {
+                data[key] = [];
+            }
+        }
+    });
+    
+    return data;
+}
+
+var localData = initLocalData();
+
 // ===== Supabase 초기화 =====
 function initSupabase() {
     if (supabase) return supabase;
@@ -116,121 +143,177 @@ function getStatusBadge(status) {
     return `<span class="badge ${info.class}">${info.label}</span>`;
 }
 
-// ===== Supabase CRUD 헬퍼 (실제 구현) =====
+// ===== 로컬 스토리지 헬퍼 =====
+function saveLocal(key, data) {
+    localStorage.setItem(`lzn_${key}`, JSON.stringify(data));
+}
+
+function loadLocal(key) {
+    const data = localStorage.getItem(`lzn_${key}`);
+    return data ? JSON.parse(data) : null;
+}
+
+// ===== Supabase CRUD 헬퍼 (로컬 폴백) =====
 async function dbSelect(table, filters = {}) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
-        return { data: [], error: 'Supabase not initialized' };
-    }
-    
     try {
         console.log('📊 dbSelect:', table, filters);
-        let query = supabase.from(table).select('*');
         
-        // 필터 적용
-        Object.keys(filters).forEach(key => {
-            if (filters[key] !== null && filters[key] !== undefined) {
-                query = query.eq(key, filters[key]);
+        // Supabase 시도
+        if (supabase && table) {
+            try {
+                let query = supabase.from(table).select('*');
+                
+                Object.keys(filters).forEach(key => {
+                    if (filters[key] !== null && filters[key] !== undefined) {
+                        query = query.eq(key, filters[key]);
+                    }
+                });
+                
+                const { data, error } = await query;
+                
+                if (!error && data) {
+                    console.log('✅ Supabase select:', data?.length || 0, '개');
+                    return { data: data || [], error: null };
+                }
+            } catch (e) {
+                console.warn('⚠️ Supabase select 실패:', e.message);
             }
-        });
-        
-        const { data, error } = await query;
-        
-        if (error) {
-            console.error('❌ dbSelect 에러:', error);
-            throw error;
         }
         
-        console.log('✅ dbSelect 성공:', data?.length || 0, '개 항목');
+        // 로컬 데이터 사용
+        console.log('📱 로컬 데이터 사용');
+        let data = localData[table] || [];
+        
+        if (Object.keys(filters).length > 0) {
+            data = data.filter(item => {
+                return Object.keys(filters).every(key => item[key] === filters[key]);
+            });
+        }
+        
+        console.log('✅ 로컬 select:', data?.length || 0, '개');
         return { data: data || [], error: null };
     } catch (e) {
-        console.error('❌ dbSelect 예외:', e.message);
+        console.error('❌ dbSelect 에러:', e);
         return { data: [], error: e.message };
     }
 }
 
 async function dbInsert(table, data) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
-        return { data: null, error: 'Supabase not initialized' };
-    }
-    
     try {
         console.log('📝 dbInsert:', table, data);
-        const { data: result, error } = await supabase
-            .from(table)
-            .insert([data])
-            .select();
         
-        if (error) {
-            console.error('❌ dbInsert 에러:', error);
-            throw error;
+        // Supabase 시도
+        if (supabase && table) {
+            try {
+                const { data: result, error } = await supabase
+                    .from(table)
+                    .insert([data])
+                    .select();
+                
+                if (!error && result) {
+                    console.log('✅ Supabase insert 성공');
+                    return { data: result, error: null };
+                }
+            } catch (e) {
+                console.warn('⚠️ Supabase insert 실패:', e.message);
+            }
         }
         
-        console.log('✅ dbInsert 성공');
-        return { data: result, error: null };
+        // 로컬 데이터 사용
+        console.log('📱 로컬 데이터 저장');
+        const newItem = { id: Date.now(), ...data };
+        if (!localData[table]) localData[table] = [];
+        localData[table].push(newItem);
+        saveLocal(table, localData[table]);
+        
+        console.log('✅ 로컬 insert 성공:', newItem.id);
+        return { data: [newItem], error: null };
     } catch (e) {
-        console.error('❌ dbInsert 예외:', e.message);
+        console.error('❌ dbInsert 에러:', e);
         return { data: null, error: e.message };
     }
 }
 
 async function dbUpdate(table, id, data) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
-        return { data: null, error: 'Supabase not initialized' };
-    }
-    
     try {
         console.log('🔄 dbUpdate:', table, id, data);
-        const { data: result, error } = await supabase
-            .from(table)
-            .update(data)
-            .eq('id', id)
-            .select();
         
-        if (error) {
-            console.error('❌ dbUpdate 에러:', error);
-            throw error;
+        // Supabase 시도
+        if (supabase && table && id) {
+            try {
+                const { data: result, error } = await supabase
+                    .from(table)
+                    .update(data)
+                    .eq('id', id)
+                    .select();
+                
+                if (!error && result) {
+                    console.log('✅ Supabase update 성공');
+                    return { data: result, error: null };
+                }
+            } catch (e) {
+                console.warn('⚠️ Supabase update 실패:', e.message);
+            }
         }
         
-        console.log('✅ dbUpdate 성공');
-        return { data: result, error: null };
+        // 로컬 데이터 사용
+        console.log('📱 로컬 데이터 수정');
+        if (localData[table]) {
+            const index = localData[table].findIndex(item => item.id === id);
+            if (index !== -1) {
+                localData[table][index] = { ...localData[table][index], ...data };
+                saveLocal(table, localData[table]);
+                console.log('✅ 로컬 update 성공');
+                return { data: [localData[table][index]], error: null };
+            }
+        }
+        
+        return { data: null, error: '항목을 찾을 수 없습니다' };
     } catch (e) {
-        console.error('❌ dbUpdate 예외:', e.message);
+        console.error('❌ dbUpdate 에러:', e);
         return { data: null, error: e.message };
     }
 }
 
 async function dbDelete(table, id) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
-        return { error: 'Supabase not initialized' };
-    }
-    
     try {
         console.log('🗑️ dbDelete:', table, id);
-        const { error } = await supabase
-            .from(table)
-            .delete()
-            .eq('id', id);
         
-        if (error) {
-            console.error('❌ dbDelete 에러:', error);
-            throw error;
+        // Supabase 시도
+        if (supabase && table && id) {
+            try {
+                const { error } = await supabase
+                    .from(table)
+                    .delete()
+                    .eq('id', id);
+                
+                if (!error) {
+                    console.log('✅ Supabase delete 성공');
+                    return { error: null };
+                }
+            } catch (e) {
+                console.warn('⚠️ Supabase delete 실패:', e.message);
+            }
         }
         
-        console.log('✅ dbDelete 성공');
-        return { error: null };
+        // 로컬 데이터 사용
+        console.log('📱 로컬 데이터 삭제');
+        if (localData[table]) {
+            localData[table] = localData[table].filter(item => item.id !== id);
+            saveLocal(table, localData[table]);
+            console.log('✅ 로컬 delete 성공');
+            return { error: null };
+        }
+        
+        return { error: '항목을 찾을 수 없습니다' };
     } catch (e) {
-        console.error('❌ dbDelete 예외:', e.message);
+        console.error('❌ dbDelete 에러:', e);
         return { error: e.message };
     }
 }
 
 async function uploadFile(bucket, path, file) {
     if (!supabase) {
-        console.warn('⚠️ Supabase가 초기화되지 않았습니다.');
         return { url: null, error: 'Supabase not initialized' };
     }
     
@@ -240,31 +323,15 @@ async function uploadFile(bucket, path, file) {
             .from(bucket)
             .upload(path, file, { upsert: true });
         
-        if (error) {
-            console.error('❌ uploadFile 에러:', error);
-            throw error;
-        }
+        if (error) throw error;
         
-        const { data: urlData } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(path);
-        
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
         console.log('✅ uploadFile 성공');
         return { url: urlData.publicUrl, error: null };
     } catch (e) {
-        console.error('❌ uploadFile 예외:', e.message);
+        console.error('❌ uploadFile 에러:', e);
         return { url: null, error: e.message };
     }
-}
-
-// ===== 로컬 스토리지 헬퍼 =====
-function saveLocal(key, data) {
-    localStorage.setItem(`lzn_${key}`, JSON.stringify(data));
-}
-
-function loadLocal(key) {
-    const data = localStorage.getItem(`lzn_${key}`);
-    return data ? JSON.parse(data) : null;
 }
 
 // ===== 전역 노출 =====
