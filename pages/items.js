@@ -4,7 +4,7 @@ const ITEM_REMARK_MAX_LENGTH = 1000;
 const ITEM_DRAWING_LIMIT = 3;
 const ITEM_DRAWING_MAX_SIZE = 10 * 1024 * 1024;
 const ITEM_DRAWINGS_BUCKET = 'item-drawings';
-const ITEM_PART_CATEGORY_ALIASES = new Set(['part', 'parts', 'component', 'components', 'spare part', 'spare parts', '零件', '部件', '配件']);
+const ITEM_PART_CATEGORY_ALIASES = new Set((CONFIG.itemPartCategoryAliases || []).map(alias => String(alias).trim().toLowerCase()));
 const ITEM_DRAWING_ALLOWED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'dwg']);
 const ITEM_DRAWING_ALLOWED_MIME_TYPES = new Set([
     'application/pdf',
@@ -438,7 +438,7 @@ function handleItemDrawingSelection(event) {
 
     files.forEach(file => {
         itemModalState.pendingDrawings.push({
-            tempId: window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${file.name}-${file.size}`,
+            tempId: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}-${file.size}`,
             file,
             name: file.name,
             size: file.size,
@@ -490,7 +490,7 @@ async function readFileAsDataUrl(file) {
     return await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error(`Failed to read file ${getSafeFileLabel(file.name)}: ${reader.error?.message || 'Unknown error'}`));
+        reader.onerror = () => reject(new Error(`Failed to read file ${getSafeFileLabel(file.name)}: ${reader.error?.message || 'File read operation failed'}`));
         reader.readAsDataURL(file);
     });
 }
@@ -587,10 +587,6 @@ async function saveItem(id) {
         let itemId = result.data?.[0]?.id || id;
 
         if (itemModalState.pendingDrawings.length > 0) {
-            if (!itemId) {
-                const { data: insertedItems } = await dbSelect('items', { item_code: code });
-                itemId = insertedItems?.[0]?.id || null;
-            }
             if (!itemId) {
                 throw new Error(t('error.not_found'));
             }

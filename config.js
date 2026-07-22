@@ -30,7 +30,10 @@ const CONFIG = {
         '8504.40-9100': 'EA',
         '8542.31-0000': 'EA',
         '9018.90-0000': 'SET'
-    }
+    },
+
+    // Product category aliases that should allow drawing uploads
+    itemPartCategoryAliases: ['part', 'parts', 'component', 'components', 'spare part', 'spare parts', '零件', '部件', '配件']
 };
 
 // ===== Global Variables =====

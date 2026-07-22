@@ -206,23 +206,7 @@ CREATE INDEX IF NOT EXISTS idx_partners_tax_reg ON partners(tax_registration_num
 -- ===== Migration: Product management fields =====
 ALTER TABLE items ADD COLUMN IF NOT EXISTS remark TEXT;
 
--- Repeated here so this migration block can be run independently on older databases.
-CREATE TABLE IF NOT EXISTS item_drawings (
-    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    file_name TEXT NOT NULL,
-    file_url TEXT NOT NULL,
-    file_size BIGINT,
-    mime_type TEXT,
-    storage_path TEXT,
-    sequence INTEGER DEFAULT 1,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-ALTER TABLE item_drawings ADD COLUMN IF NOT EXISTS storage_path TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_item_drawings_item ON item_drawings(item_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_item_drawings_item_sequence ON item_drawings(item_id, sequence);
+ALTER TABLE IF EXISTS item_drawings ADD COLUMN IF NOT EXISTS storage_path TEXT;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (

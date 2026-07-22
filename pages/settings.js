@@ -123,11 +123,11 @@ async function exportData() {
         const { data: payments } = await dbSelect('payments');
         const { data: documents } = await dbSelect('documents');
 
-        const sanitizedItems = (items || []).map(({ hs_code, ...item }) => item);
+        const exportItems = (items || []).map(({ hs_code, ...item }) => item);
         
         const exportData = {
             exportDate: new Date().toISOString(),
-            items: sanitizedItems,
+            items: exportItems,
             item_drawings: itemDrawings || [],
             partners: partners || [],
             purchases: purchases || [],

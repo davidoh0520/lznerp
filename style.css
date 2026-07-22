@@ -30,7 +30,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html[lang="zh-CN"] {
-    --app-font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Heiti SC', 'WenQuanYi Micro Hei', sans-serif;
+    --app-font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Heiti SC', 'WenQuanYi Micro Hei', sans-serif;
     --app-line-height: 1.65;
     --app-letter-spacing: 0.01em;
     --app-word-spacing: 0.02em;
