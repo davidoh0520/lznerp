@@ -116,15 +116,19 @@ async function renderSettings(container) {
 async function exportData() {
     try {
         const { data: items } = await dbSelect('items');
+        const { data: itemDrawings } = await dbSelect('item_drawings');
         const { data: partners } = await dbSelect('partners');
         const { data: purchases } = await dbSelect('purchases');
         const { data: exports } = await dbSelect('exports');
         const { data: payments } = await dbSelect('payments');
         const { data: documents } = await dbSelect('documents');
+
+        const exportItems = (items || []).map(({ hs_code, ...item }) => item);
         
         const exportData = {
             exportDate: new Date().toISOString(),
-            items: items || [],
+            items: exportItems,
+            item_drawings: itemDrawings || [],
             partners: partners || [],
             purchases: purchases || [],
             exports: exports || [],

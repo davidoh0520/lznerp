@@ -30,7 +30,10 @@ const CONFIG = {
         '8504.40-9100': 'EA',
         '8542.31-0000': 'EA',
         '9018.90-0000': 'SET'
-    }
+    },
+
+    // Product category aliases that should allow drawing uploads
+    itemPartCategoryAliases: ['part', 'parts', 'component', 'components', 'spare part', 'spare parts', '零件', '部件', '配件']
 };
 
 // ===== Global Variables =====
@@ -41,6 +44,7 @@ var currentUser = null;
 function initLocalData() {
     const data = {
         items: [],
+        item_drawings: [],
         partners: [],
         purchases: [],
         exports: [],
@@ -85,6 +89,7 @@ function initSupabase() {
 // ===== Table Name Constants =====
 const TABLES = {
     ITEMS: 'items',
+    ITEM_DRAWINGS: 'item_drawings',
     PARTNERS: 'partners',
     PURCHASES: 'purchases',
     PURCHASE_ITEMS: 'purchase_items',
@@ -362,6 +367,27 @@ async function uploadFile(bucket, path, file) {
     }
 }
 
+async function deleteStorageFile(bucket, path) {
+    if (!supabase || !bucket || !path) {
+        return { error: null };
+    }
+
+    try {
+        console.log('🗑️ deleteStorageFile:', bucket, path);
+        const { error } = await supabase.storage
+            .from(bucket)
+            .remove([path]);
+
+        if (error) throw error;
+
+        console.log('✅ deleteStorageFile OK');
+        return { error: null };
+    } catch (e) {
+        console.error('deleteStorageFile error:', e);
+        return { error: e.message };
+    }
+}
+
 // ===== Global Exports =====
 window.CONFIG = CONFIG;
 window.initSupabase = initSupabase;
@@ -376,5 +402,6 @@ window.dbInsert = dbInsert;
 window.dbUpdate = dbUpdate;
 window.dbDelete = dbDelete;
 window.uploadFile = uploadFile;
+window.deleteStorageFile = deleteStorageFile;
 window.saveLocal = saveLocal;
 window.loadLocal = loadLocal;

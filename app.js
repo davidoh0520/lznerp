@@ -61,7 +61,10 @@ function switchLang(lang) {
         settings: 'page.settings'
     };
     const titleKey = titles[currentPage];
-    if (titleKey) document.getElementById('pageTitle').textContent = t(titleKey);
+    if (titleKey) {
+        document.getElementById('pageTitle').setAttribute('data-i18n', titleKey);
+        document.getElementById('pageTitle').textContent = t(titleKey);
+    }
     // Re-render dynamic content
     navigateTo(currentPage);
 }
@@ -85,7 +88,9 @@ async function navigateTo(page) {
         documents: 'page.documents',
         settings: 'page.settings'
     };
-    document.getElementById('pageTitle').textContent = t(titles[page] || page);
+    const titleKey = titles[page] || page;
+    document.getElementById('pageTitle').setAttribute('data-i18n', titleKey);
+    document.getElementById('pageTitle').textContent = t(titleKey);
     
     // Load page content
     const content = document.getElementById('pageContent');
@@ -138,6 +143,11 @@ function openModal(html) {
 
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
+    if (typeof window.__modalCleanup === 'function') {
+        const cleanup = window.__modalCleanup;
+        window.__modalCleanup = null;
+        cleanup();
+    }
 }
 
 // ===== Common Table Rendering =====
