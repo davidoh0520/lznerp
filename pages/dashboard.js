@@ -147,7 +147,7 @@ function initDashboardChart(exports) {
     (exports || []).forEach(exp => {
         if (exp.export_date) {
             const d = new Date(exp.export_date);
-            const month = d.toLocaleDateString(getCurrentLang() === 'zh-CN' ? 'zh-CN' : 'en-US', { month: 'short' });
+            const month = d.toLocaleDateString(getLocale(), { month: 'short' });
             monthCounts[month] = (monthCounts[month] || 0) + 1;
         }
     });

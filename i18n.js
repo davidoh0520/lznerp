@@ -565,6 +565,7 @@ const TRANSLATIONS = {
 
 // ===== i18n Core =====
 
+var LANG_KEY = 'lzn_lang';
 var _currentLang = 'en';
 
 function getCurrentLang() {
@@ -574,7 +575,7 @@ function getCurrentLang() {
 function setLang(lang) {
     if (!TRANSLATIONS[lang]) lang = 'en';
     _currentLang = lang;
-    localStorage.setItem('lzn_lang', lang);
+    localStorage.setItem(LANG_KEY, lang);
     document.documentElement.lang = lang;
     applyI18n();
 }
@@ -594,10 +595,6 @@ function applyI18n() {
         var key = el.getAttribute('data-i18n');
         el.textContent = t(key);
     });
-    document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
-        var key = el.getAttribute('data-i18n-html');
-        el.innerHTML = t(key);
-    });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
         var key = el.getAttribute('data-i18n-placeholder');
         el.placeholder = t(key);
@@ -613,9 +610,14 @@ function applyI18n() {
     });
 }
 
+// Returns the BCP-47 locale tag for use with Intl APIs
+function getLocale() {
+    return _currentLang === 'zh-CN' ? 'zh-CN' : 'en-US';
+}
+
 // Initialize language from localStorage on load
 (function() {
-    var saved = localStorage.getItem('lzn_lang');
+    var saved = localStorage.getItem(LANG_KEY);
     if (saved && TRANSLATIONS[saved]) {
         _currentLang = saved;
     } else {
@@ -624,7 +626,9 @@ function applyI18n() {
 })();
 
 // Expose globally
+window.LANG_KEY = LANG_KEY;
 window.t = t;
 window.getCurrentLang = getCurrentLang;
+window.getLocale = getLocale;
 window.setLang = setLang;
 window.applyI18n = applyI18n;

@@ -81,7 +81,7 @@ async function renderSettings(container) {
                     </div>
                 </div>
                 
-                <div style="border-bottom: 1px solid var(--gray-200); padding-bottom: 24px; margin-bottom: 24px;">
+                <div>
                     <h3 style="font-size: 1.1rem; margin-bottom: 16px;">${t('settings.data')}</h3>
                     
                     <div style="display: flex; gap: 12px;">
@@ -99,7 +99,7 @@ async function renderSettings(container) {
                     <p style="margin: 8px 0; font-size: 0.9rem; color: var(--gray-600);">
                         <strong>${t('settings.system.version')}:</strong> 1.0.0<br>
                         <strong>${t('settings.system.url')}:</strong> ${CONFIG.supabase.url}<br>
-                        <strong>${t('settings.system.updated')}:</strong> ${new Date().toLocaleString(getCurrentLang() === 'zh-CN' ? 'zh-CN' : 'en-US')}
+                        <strong>${t('settings.system.updated')}:</strong> ${new Date().toLocaleString(getLocale())}
                     </p>
                 </div>
             </div>
@@ -154,7 +154,7 @@ function clearLocalData() {
     
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
-        if (key.startsWith('lzn_') && key !== 'lzn_lang') {
+        if (key.startsWith('lzn_') && key !== LANG_KEY) {
             localStorage.removeItem(key);
         }
     });

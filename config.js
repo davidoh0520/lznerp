@@ -127,17 +127,17 @@ function generateId(prefix) {
 
 function getStatusBadge(status) {
     const map = {
-        'offer':    { key: 'status.offer',    cls: 'badge-info' },
-        'order':    { key: 'status.order',    cls: 'badge-warning' },
-        'received': { key: 'status.received', cls: 'badge-success' },
-        'completed':{ key: 'status.completed',cls: 'badge-success' },
-        'draft':    { key: 'status.draft',    cls: 'badge-gray' },
-        'contract': { key: 'status.contract', cls: 'badge-info' },
-        'shipped':  { key: 'status.shipped',  cls: 'badge-warning' },
-        'invoiced': { key: 'status.invoiced', cls: 'badge-success' },
-        'pending':  { key: 'status.pending',  cls: 'badge-danger' },
-        'partial':  { key: 'status.partial',  cls: 'badge-warning' },
-        'paid':     { key: 'status.paid',     cls: 'badge-success' }
+        'offer':     { key: 'status.offer',     cls: 'badge-info' },
+        'order':     { key: 'status.order',     cls: 'badge-warning' },
+        'received':  { key: 'status.received',  cls: 'badge-success' },
+        'completed': { key: 'status.completed', cls: 'badge-success' },
+        'draft':     { key: 'status.draft',     cls: 'badge-gray' },
+        'contract':  { key: 'status.contract',  cls: 'badge-info' },
+        'shipped':   { key: 'status.shipped',   cls: 'badge-warning' },
+        'invoiced':  { key: 'status.invoiced',  cls: 'badge-success' },
+        'pending':   { key: 'status.pending',   cls: 'badge-danger' },
+        'partial':   { key: 'status.partial',   cls: 'badge-warning' },
+        'paid':      { key: 'status.paid',      cls: 'badge-success' }
     };
     const info = map[status];
     const label = info ? t(info.key) : status;
