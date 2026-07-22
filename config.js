@@ -1,13 +1,13 @@
-// ===== LZN ERP 설정 파일 =====
+// ===== LZN ERP Configuration =====
 
 const CONFIG = {
-    // Supabase 설정
+    // Supabase settings
     supabase: {
         url: 'https://snyvexlqpxpqjswizszz.supabase.co',
         anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNueXZleGxxcHhwcWpzd2l6c3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEzOTEwNzgsImV4cCI6MjAzNjk2NzA3OH0.sb_publishable_wEQsmWUREF_lKiYm27jF_g_MlAEiomd'
     },
     
-    // 회사 정보 (LZN MEDICAL)
+    // Company info (LZN MEDICAL)
     company: {
         name: 'LZN MEDICAL CO., LTD.',
         name_cn: '上海流健医疗器械有限公司',
@@ -24,7 +24,7 @@ const CONFIG = {
         swift: 'HVBKCNBJ'
     },
     
-    // HS 코드별 기본 통관 단위 매핑
+    // Default customs unit mapping by HS code
     hsUnits: {
         '8466.91-0000': 'KG',
         '8504.40-9100': 'EA',
@@ -33,11 +33,11 @@ const CONFIG = {
     }
 };
 
-// ===== 전역 변수 =====
+// ===== Global Variables =====
 var supabase = null;
 var currentUser = null;
 
-// ===== 로컬 데이터 저장소 초기화 =====
+// ===== Local Data Store Init =====
 function initLocalData() {
     const data = {
         items: [],
@@ -64,25 +64,25 @@ function initLocalData() {
 
 var localData = initLocalData();
 
-// ===== Supabase 초기화 =====
+// ===== Supabase Init =====
 function initSupabase() {
     if (supabase) return supabase;
     if (!CONFIG.supabase.url || CONFIG.supabase.url === '') {
-        console.warn('⚠️ Supabase URL이 설정되지 않았습니다.');
+        console.warn('⚠️ Supabase URL is not configured.');
         return null;
     }
     try {
         const { createClient } = window.supabase;
         supabase = createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
-        console.log('✅ Supabase 초기화 완료');
+        console.log('✅ Supabase initialized');
         return supabase;
     } catch (e) {
-        console.warn('⚠️ Supabase 초기화 실패:', e.message);
+        console.warn('⚠️ Supabase init failed:', e.message);
         return null;
     }
 }
 
-// ===== 테이블명 상수 =====
+// ===== Table Name Constants =====
 const TABLES = {
     ITEMS: 'items',
     PARTNERS: 'partners',
@@ -94,7 +94,7 @@ const TABLES = {
     DOCUMENTS: 'documents'
 };
 
-// ===== 유틸리티 함수 =====
+// ===== Utility Functions =====
 function formatDate(date) {
     if (!date) return '-';
     try {
@@ -108,7 +108,7 @@ function formatDate(date) {
 
 function formatCurrency(amount, currency = 'CNY') {
     if (amount === null || amount === undefined || isNaN(amount)) return '-';
-    return new Intl.NumberFormat('ko-KR', { 
+    return new Intl.NumberFormat('en-US', { 
         style: 'currency', 
         currency: currency,
         minimumFractionDigits: 0,
@@ -127,23 +127,25 @@ function generateId(prefix) {
 
 function getStatusBadge(status) {
     const map = {
-        'offer': { label: '오퍼', class: 'badge-info' },
-        'order': { label: '오더', class: 'badge-warning' },
-        'received': { label: '입고완료', class: 'badge-success' },
-        'completed': { label: '완료', class: 'badge-success' },
-        'draft': { label: '임시', class: 'badge-gray' },
-        'contract': { label: '계약', class: 'badge-info' },
-        'shipped': { label: '선적', class: 'badge-warning' },
-        'invoiced': { label: '인보이스발행', class: 'badge-success' },
-        'pending': { label: '미수금', class: 'badge-danger' },
-        'partial': { label: '부분수금', class: 'badge-warning' },
-        'paid': { label: '수금완료', class: 'badge-success' }
+        'offer':     { key: 'status.offer',     cls: 'badge-info' },
+        'order':     { key: 'status.order',     cls: 'badge-warning' },
+        'received':  { key: 'status.received',  cls: 'badge-success' },
+        'completed': { key: 'status.completed', cls: 'badge-success' },
+        'draft':     { key: 'status.draft',     cls: 'badge-gray' },
+        'contract':  { key: 'status.contract',  cls: 'badge-info' },
+        'shipped':   { key: 'status.shipped',   cls: 'badge-warning' },
+        'invoiced':  { key: 'status.invoiced',  cls: 'badge-success' },
+        'pending':   { key: 'status.pending',   cls: 'badge-danger' },
+        'partial':   { key: 'status.partial',   cls: 'badge-warning' },
+        'paid':      { key: 'status.paid',      cls: 'badge-success' }
     };
-    const info = map[status] || { label: status, class: 'badge-gray' };
-    return `<span class="badge ${info.class}">${info.label}</span>`;
+    const info = map[status];
+    const label = info ? t(info.key) : status;
+    const cls   = info ? info.cls    : 'badge-gray';
+    return `<span class="badge ${cls}">${label}</span>`;
 }
 
-// ===== 로컬 스토리지 헬퍼 =====
+// ===== Local Storage Helpers =====
 function saveLocal(key, data) {
     localStorage.setItem(`lzn_${key}`, JSON.stringify(data));
 }
@@ -153,12 +155,12 @@ function loadLocal(key) {
     return data ? JSON.parse(data) : null;
 }
 
-// ===== Supabase CRUD 헬퍼 (로컬 폴백) =====
+// ===== Supabase CRUD Helpers (with local fallback) =====
 async function dbSelect(table, filters = {}) {
     try {
         console.log('📊 dbSelect:', table, filters);
         
-        // Supabase 시도
+        // Try Supabase
         if (supabase && table) {
             try {
                 let query = supabase.from(table).select('*');
@@ -172,16 +174,16 @@ async function dbSelect(table, filters = {}) {
                 const { data, error } = await query;
                 
                 if (!error && data) {
-                    console.log('✅ Supabase select:', data?.length || 0, '개');
+                    console.log('✅ Supabase select:', data?.length || 0, 'rows');
                     return { data: data || [], error: null };
                 }
             } catch (e) {
-                console.warn('⚠️ Supabase select 실패:', e.message);
+                console.warn('⚠️ Supabase select failed:', e.message);
             }
         }
         
-        // 로컬 데이터 사용
-        console.log('📱 로컬 데이터 사용');
+        // Use local data
+        console.log('📱 Using local data');
         let data = localData[table] || [];
         
         if (Object.keys(filters).length > 0) {
@@ -190,10 +192,10 @@ async function dbSelect(table, filters = {}) {
             });
         }
         
-        console.log('✅ 로컬 select:', data?.length || 0, '개');
+        console.log('✅ Local select:', data?.length || 0, 'rows');
         return { data: data || [], error: null };
     } catch (e) {
-        console.error('❌ dbSelect 에러:', e);
+        console.error('dbSelect error:', e);
         return { data: [], error: e.message };
     }
 }
@@ -202,7 +204,7 @@ async function dbInsert(table, data) {
     try {
         console.log('📝 dbInsert:', table, data);
         
-        // Supabase 시도
+        // Try Supabase
         if (supabase && table) {
             try {
                 const { data: result, error } = await supabase
@@ -211,25 +213,25 @@ async function dbInsert(table, data) {
                     .select();
                 
                 if (!error && result) {
-                    console.log('✅ Supabase insert 성공');
+                    console.log('✅ Supabase insert OK');
                     return { data: result, error: null };
                 }
             } catch (e) {
-                console.warn('⚠️ Supabase insert 실패:', e.message);
+                console.warn('⚠️ Supabase insert failed:', e.message);
             }
         }
         
-        // 로컬 데이터 사용
-        console.log('📱 로컬 데이터 저장');
+        // Use local data
+        console.log('📱 Saving local data');
         const newItem = { id: Date.now(), ...data };
         if (!localData[table]) localData[table] = [];
         localData[table].push(newItem);
         saveLocal(table, localData[table]);
         
-        console.log('✅ 로컬 insert 성공:', newItem.id);
+        console.log('✅ Local insert OK:', newItem.id);
         return { data: [newItem], error: null };
     } catch (e) {
-        console.error('❌ dbInsert 에러:', e);
+        console.error('dbInsert error:', e);
         return { data: null, error: e.message };
     }
 }
@@ -238,7 +240,7 @@ async function dbUpdate(table, id, data) {
     try {
         console.log('🔄 dbUpdate:', table, id, data);
         
-        // Supabase 시도
+        // Try Supabase
         if (supabase && table && id) {
             try {
                 const { data: result, error } = await supabase
@@ -248,29 +250,29 @@ async function dbUpdate(table, id, data) {
                     .select();
                 
                 if (!error && result) {
-                    console.log('✅ Supabase update 성공');
+                    console.log('✅ Supabase update OK');
                     return { data: result, error: null };
                 }
             } catch (e) {
-                console.warn('⚠️ Supabase update 실패:', e.message);
+                console.warn('⚠️ Supabase update failed:', e.message);
             }
         }
         
-        // 로컬 데이터 사용
-        console.log('📱 로컬 데이터 수정');
+        // Use local data
+        console.log('📱 Updating local data');
         if (localData[table]) {
             const index = localData[table].findIndex(item => item.id === id);
             if (index !== -1) {
                 localData[table][index] = { ...localData[table][index], ...data };
                 saveLocal(table, localData[table]);
-                console.log('✅ 로컬 update 성공');
+                console.log('✅ Local update OK');
                 return { data: [localData[table][index]], error: null };
             }
         }
         
-        return { data: null, error: '항목을 찾을 수 없습니다' };
+        return { data: null, error: t('error.not_found') };
     } catch (e) {
-        console.error('❌ dbUpdate 에러:', e);
+        console.error('dbUpdate error:', e);
         return { data: null, error: e.message };
     }
 }
@@ -279,7 +281,7 @@ async function dbDelete(table, id) {
     try {
         console.log('🗑️ dbDelete:', table, id);
         
-        // Supabase 시도
+        // Try Supabase
         if (supabase && table && id) {
             try {
                 const { error } = await supabase
@@ -288,26 +290,26 @@ async function dbDelete(table, id) {
                     .eq('id', id);
                 
                 if (!error) {
-                    console.log('✅ Supabase delete 성공');
+                    console.log('✅ Supabase delete OK');
                     return { error: null };
                 }
             } catch (e) {
-                console.warn('⚠️ Supabase delete 실패:', e.message);
+                console.warn('⚠️ Supabase delete failed:', e.message);
             }
         }
         
-        // 로컬 데이터 사용
-        console.log('📱 로컬 데이터 삭제');
+        // Use local data
+        console.log('📱 Deleting local data');
         if (localData[table]) {
             localData[table] = localData[table].filter(item => item.id !== id);
             saveLocal(table, localData[table]);
-            console.log('✅ 로컬 delete 성공');
+            console.log('✅ Local delete OK');
             return { error: null };
         }
         
-        return { error: '항목을 찾을 수 없습니다' };
+        return { error: t('error.not_found') };
     } catch (e) {
-        console.error('❌ dbDelete 에러:', e);
+        console.error('dbDelete error:', e);
         return { error: e.message };
     }
 }
@@ -326,15 +328,15 @@ async function uploadFile(bucket, path, file) {
         if (error) throw error;
         
         const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
-        console.log('✅ uploadFile 성공');
+        console.log('✅ uploadFile OK');
         return { url: urlData.publicUrl, error: null };
     } catch (e) {
-        console.error('❌ uploadFile 에러:', e);
+        console.error('uploadFile error:', e);
         return { url: null, error: e.message };
     }
 }
 
-// ===== 전역 노출 =====
+// ===== Global Exports =====
 window.CONFIG = CONFIG;
 window.initSupabase = initSupabase;
 window.TABLES = TABLES;

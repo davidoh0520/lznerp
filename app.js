@@ -1,15 +1,18 @@
-// ===== LZN ERP - 메인 애플리케이션 =====
+// ===== LZN ERP - Main Application =====
 
-// 페이지 로드 완료 후 실행
+// Run after page load
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
 async function initApp() {
-    // Supabase 초기화
+    // Apply i18n to static HTML
+    applyI18n();
+
+    // Supabase init
     initSupabase();
     
-    // 네비게이션 이벤트
+    // Navigation events
     document.querySelectorAll('.nav-menu a').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
@@ -18,55 +21,77 @@ async function initApp() {
         });
     });
     
-    // 새로고침 버튼
+    // Refresh button
     document.getElementById('refreshBtn').addEventListener('click', function() {
         const currentPage = document.querySelector('.nav-menu a.active')?.dataset?.page || 'dashboard';
         navigateTo(currentPage);
     });
     
-    // 모달 닫기
+    // Modal close
     document.querySelector('.close-btn').addEventListener('click', closeModal);
     document.getElementById('modal').addEventListener('click', function(e) {
         if (e.target === this) closeModal();
     });
     
-    // 로그아웃
+    // Logout
     document.getElementById('logoutBtn').addEventListener('click', function() {
-        if (confirm('로그아웃 하시겠습니까?')) {
-            alert('로그아웃 되었습니다.');
+        if (confirm(t('confirm.logout'))) {
+            alert(t('alert.logout'));
         }
     });
     
-    // 기본 페이지: 대시보드
+    // Default page: dashboard
     navigateTo('dashboard');
 }
 
-// ===== 페이지 네비게이션 =====
+// ===== Language Switcher =====
+function switchLang(lang) {
+    setLang(lang);
+    // Re-render current page content
+    const currentPage = document.querySelector('.nav-menu a.active')?.dataset?.page || 'dashboard';
+    // Update page title
+    const titles = {
+        dashboard: 'page.dashboard',
+        items: 'page.items',
+        partners: 'page.partners',
+        purchases: 'page.purchases',
+        exports: 'page.exports',
+        payments: 'page.payments',
+        documents: 'page.documents',
+        settings: 'page.settings'
+    };
+    const titleKey = titles[currentPage];
+    if (titleKey) document.getElementById('pageTitle').textContent = t(titleKey);
+    // Re-render dynamic content
+    navigateTo(currentPage);
+}
+
+// ===== Page Navigation =====
 async function navigateTo(page) {
-    // 네비게이션 활성화
+    // Activate nav link
     document.querySelectorAll('.nav-menu a').forEach(link => {
         link.classList.remove('active');
         if (link.dataset.page === page) link.classList.add('active');
     });
     
-    // 페이지 타이틀 변경
+    // Page title
     const titles = {
-        dashboard: '📊 대시보드',
-        items: '📦 품목 관리',
-        partners: '🏢 거래처 관리',
-        purchases: '📥 매입 관리',
-        exports: '📤 수출 관리',
-        payments: '💰 수금 관리',
-        documents: '📎 서류 관리',
-        settings: '⚙️ 설정'
+        dashboard: 'page.dashboard',
+        items: 'page.items',
+        partners: 'page.partners',
+        purchases: 'page.purchases',
+        exports: 'page.exports',
+        payments: 'page.payments',
+        documents: 'page.documents',
+        settings: 'page.settings'
     };
-    document.getElementById('pageTitle').textContent = titles[page] || page;
+    document.getElementById('pageTitle').textContent = t(titles[page] || page);
     
-    // 페이지 내용 로드
+    // Load page content
     const content = document.getElementById('pageContent');
     
-    // 로딩 표시
-    content.innerHTML = '<div class="text-center" style="padding: 40px;">⏳ 로딩 중...</div>';
+    // Loading indicator
+    content.innerHTML = `<div class="text-center" style="padding: 40px;">${t('loading')}</div>`;
     
     try {
         switch(page) {
@@ -95,15 +120,15 @@ async function navigateTo(page) {
                 await renderSettings(content);
                 break;
             default:
-                content.innerHTML = '<p>페이지를 찾을 수 없습니다.</p>';
+                content.innerHTML = `<p>${t('error.page_not_found')}</p>`;
         }
     } catch (e) {
         console.error(e);
-        content.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 오류가 발생했습니다: ${e.message}</p>`;
+        content.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.occurred')}${e.message}</p>`;
     }
 }
 
-// ===== 모달 =====
+// ===== Modal =====
 function openModal(html) {
     document.getElementById('modalBody').innerHTML = html;
     document.getElementById('modal').classList.remove('hidden');
@@ -113,17 +138,17 @@ function closeModal() {
     document.getElementById('modal').classList.add('hidden');
 }
 
-// ===== 공통 테이블 렌더링 =====
+// ===== Common Table Rendering =====
 function renderTable(columns, data, actions = null) {
     if (!data || data.length === 0) {
-        return '<p class="text-center" style="padding: 20px; color: var(--gray-500);">📭 데이터가 없습니다.</p>';
+        return `<p class="text-center" style="padding: 20px; color: var(--gray-500);">${t('no_data')}</p>`;
     }
     
     let html = '<div class="table-wrapper"><table><thead><tr>';
     columns.forEach(col => {
         html += `<th>${col.label}</th>`;
     });
-    if (actions) html += '<th>관리</th>';
+    if (actions) html += `<th>${t('col.manage')}</th>`;
     html += '</tr></thead><tbody>';
     
     data.forEach(row => {
@@ -143,7 +168,7 @@ function renderTable(columns, data, actions = null) {
     return html;
 }
 
-// ===== 알림 =====
+// ===== Toast / Alert =====
 function showToast(message, type = 'info') {
     alert(message);
 }

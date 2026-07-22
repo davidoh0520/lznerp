@@ -1,4 +1,4 @@
-// ===== 수금 관리 페이지 =====
+// ===== Payments Page =====
 
 async function renderPayments(container) {
     try {
@@ -6,12 +6,12 @@ async function renderPayments(container) {
         
         let html = `
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button onclick="openPaymentModal()" class="btn-primary">➕ 새 수금 추가</button>
+                <button onclick="openPaymentModal()" class="btn-primary">${t('payments.add')}</button>
                 <select id="paymentStatusFilter" onchange="filterPaymentsTable()" style="max-width: 150px;">
-                    <option value="">전체 상태</option>
-                    <option value="pending">미수금</option>
-                    <option value="partial">부분수금</option>
-                    <option value="paid">수금완료</option>
+                    <option value="">${t('payments.filter.all')}</option>
+                    <option value="pending">${t('status.pending')}</option>
+                    <option value="partial">${t('status.partial')}</option>
+                    <option value="paid">${t('status.paid')}</option>
                 </select>
             </div>
             
@@ -23,14 +23,14 @@ async function renderPayments(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('수금 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 수금 로드 실패: ${e.message}</p>`;
+        console.error('Payments render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
 function renderPaymentsTable(payments) {
     if (!payments || payments.length === 0) {
-        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 수금 정보가 없습니다.</p>';
+        return `<p class="text-center" style="padding: 40px; color: var(--gray-500);">${t('payments.no_data')}</p>`;
     }
     
     let html = `
@@ -38,13 +38,13 @@ function renderPaymentsTable(payments) {
             <table>
                 <thead>
                     <tr>
-                        <th>수금 코드</th>
-                        <th>수출 ID</th>
-                        <th>금액</th>
-                        <th>통화</th>
-                        <th>상태</th>
-                        <th>수금일</th>
-                        <th>관리</th>
+                        <th>${t('payments.col.code')}</th>
+                        <th>${t('payments.col.export_id')}</th>
+                        <th>${t('payments.col.amount')}</th>
+                        <th>${t('payments.col.currency')}</th>
+                        <th>${t('payments.col.status')}</th>
+                        <th>${t('payments.col.date')}</th>
+                        <th>${t('col.manage')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,8 +60,8 @@ function renderPaymentsTable(payments) {
                 <td>${getStatusBadge(payment.status)}</td>
                 <td>${formatDate(payment.payment_date)}</td>
                 <td>
-                    <button onclick='editPayment(${JSON.stringify(payment).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
-                    <button onclick="deletePayment(${payment.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                    <button onclick='editPayment(${JSON.stringify(payment).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">${t('btn.edit')}</button>
+                    <button onclick="deletePayment(${payment.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">${t('btn.delete')}</button>
                 </td>
             </tr>
         `;
@@ -94,27 +94,27 @@ function openPaymentModal(payment = null) {
     const isEdit = payment !== null;
     
     const html = `
-        <h2>${isEdit ? '수금 수정' : '새 수금 추가'}</h2>
+        <h2>${isEdit ? t('payments.modal.edit') : t('payments.modal.add')}</h2>
         
         <div class="form-group">
-            <label>수금 코드</label>
+            <label>${t('payments.field.code')}</label>
             <input type="text" id="paymentCode" value="${payment?.payment_code || ''}" 
-                ${isEdit ? 'disabled' : ''} placeholder="예: PAY-240701-001">
+                ${isEdit ? 'disabled' : ''} placeholder="${t('payments.placeholder.code')}">
         </div>
         
         <div class="form-group">
-            <label>수출 ID</label>
-            <input type="number" id="exportId" value="${payment?.export_id || ''}" placeholder="수출 ID">
+            <label>${t('payments.field.export_id')}</label>
+            <input type="number" id="exportId" value="${payment?.export_id || ''}" placeholder="${t('payments.placeholder.export_id')}">
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>금액</label>
+                <label>${t('payments.field.amount')}</label>
                 <input type="number" id="amount" value="${payment?.amount || ''}" placeholder="0.00" step="0.01">
             </div>
             
             <div class="form-group">
-                <label>통화</label>
+                <label>${t('payments.field.currency')}</label>
                 <select id="currency">
                     <option value="CNY" ${payment?.currency === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
                     <option value="USD" ${payment?.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
@@ -125,41 +125,41 @@ function openPaymentModal(payment = null) {
         
         <div class="form-row">
             <div class="form-group">
-                <label>상태</label>
+                <label>${t('payments.field.status')}</label>
                 <select id="status">
-                    <option value="pending" ${payment?.status === 'pending' ? 'selected' : ''}>미수금</option>
-                    <option value="partial" ${payment?.status === 'partial' ? 'selected' : ''}>부분수금</option>
-                    <option value="paid" ${payment?.status === 'paid' ? 'selected' : ''}>수금완료</option>
+                    <option value="pending" ${payment?.status === 'pending' ? 'selected' : ''}>${t('status.pending')}</option>
+                    <option value="partial" ${payment?.status === 'partial' ? 'selected' : ''}>${t('status.partial')}</option>
+                    <option value="paid" ${payment?.status === 'paid' ? 'selected' : ''}>${t('status.paid')}</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>수금일</label>
+                <label>${t('payments.field.date')}</label>
                 <input type="date" id="paymentDate" value="${payment?.payment_date || ''}">
             </div>
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>결제 방법</label>
+                <label>${t('payments.field.method')}</label>
                 <select id="paymentMethod">
-                    <option value="" ${!payment?.payment_method ? 'selected' : ''}>선택</option>
-                    <option value="wire_transfer" ${payment?.payment_method === 'wire_transfer' ? 'selected' : ''}>해외송금</option>
-                    <option value="check" ${payment?.payment_method === 'check' ? 'selected' : ''}>수표</option>
-                    <option value="letter_of_credit" ${payment?.payment_method === 'letter_of_credit' ? 'selected' : ''}>신용장</option>
-                    <option value="other" ${payment?.payment_method === 'other' ? 'selected' : ''}>기타</option>
+                    <option value="" ${!payment?.payment_method ? 'selected' : ''}>${t('payments.method.select')}</option>
+                    <option value="wire_transfer" ${payment?.payment_method === 'wire_transfer' ? 'selected' : ''}>${t('payments.method.wire')}</option>
+                    <option value="check" ${payment?.payment_method === 'check' ? 'selected' : ''}>${t('payments.method.check')}</option>
+                    <option value="letter_of_credit" ${payment?.payment_method === 'letter_of_credit' ? 'selected' : ''}>${t('payments.method.lc')}</option>
+                    <option value="other" ${payment?.payment_method === 'other' ? 'selected' : ''}>${t('payments.method.other')}</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>은행 참조번호</label>
-                <input type="text" id="bankReference" value="${payment?.bank_reference || ''}" placeholder="참조번호">
+                <label>${t('payments.field.bank_ref')}</label>
+                <input type="text" id="bankReference" value="${payment?.bank_reference || ''}" placeholder="${t('payments.placeholder.bank_ref')}">
             </div>
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button onclick="savePayment(${payment?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
-            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+            <button onclick="savePayment(${payment?.id || 'null'})" class="btn-primary" style="flex: 1;">${t('btn.save')}</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">${t('btn.cancel')}</button>
         </div>
     `;
     
@@ -177,7 +177,7 @@ async function savePayment(id) {
     const bankReference = document.getElementById('bankReference').value.trim();
     
     if (!paymentCode || !exportId) {
-        alert('❌ 수금 코드와 수출 ID는 필수입니다.');
+        alert(t('payments.required'));
         return;
     }
     
@@ -197,19 +197,19 @@ async function savePayment(id) {
         if (id) {
             result = await dbUpdate('payments', id, data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 수금이 수정되었습니다.');
+            alert(t('payments.updated'));
         } else {
             result = await dbInsert('payments', data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 수금이 추가되었습니다.');
+            alert(t('payments.saved'));
         }
         
         closeModal();
         navigateTo('payments');
         
     } catch (e) {
-        console.error('수금 저장 에러:', e);
-        alert(`❌ 저장 실패: ${e.message}`);
+        console.error('Payment save error:', e);
+        alert(`${t('error.save_failed')}${e.message}`);
     }
 }
 
@@ -218,17 +218,17 @@ async function editPayment(payment) {
 }
 
 async function deletePayment(id) {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t('confirm.delete'))) return;
     
     try {
         const result = await dbDelete('payments', id);
         if (result.error) throw new Error(result.error);
         
-        alert('✅ 수금이 삭제되었습니다.');
+        alert(t('payments.deleted'));
         navigateTo('payments');
         
     } catch (e) {
-        console.error('수금 삭제 에러:', e);
-        alert(`❌ 삭제 실패: ${e.message}`);
+        console.error('Payment delete error:', e);
+        alert(`${t('error.delete_failed')}${e.message}`);
     }
 }

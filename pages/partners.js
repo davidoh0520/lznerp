@@ -1,4 +1,4 @@
-// ===== 거래처 관리 페이지 =====
+// ===== Partners Page =====
 
 async function renderPartners(container) {
     try {
@@ -6,8 +6,8 @@ async function renderPartners(container) {
         
         let html = `
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button onclick="openPartnerModal()" class="btn-primary">➕ 새 거래처 추가</button>
-                <input type="text" id="partnerSearch" placeholder="거래처명 또는 국가 검색..." 
+                <button onclick="openPartnerModal()" class="btn-primary">${t('partners.add')}</button>
+                <input type="text" id="partnerSearch" placeholder="${t('partners.search')}" 
                     style="flex: 1; max-width: 300px;"
                     onkeyup="filterPartnersTable()">
             </div>
@@ -20,14 +20,14 @@ async function renderPartners(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('거래처 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 거래처 로드 실패: ${e.message}</p>`;
+        console.error('Partners render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
 function renderPartnersTable(partners) {
     if (!partners || partners.length === 0) {
-        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 거래처가 없습니다.</p>';
+        return `<p class="text-center" style="padding: 40px; color: var(--gray-500);">${t('partners.no_data')}</p>`;
     }
     
     let html = `
@@ -35,13 +35,13 @@ function renderPartnersTable(partners) {
             <table>
                 <thead>
                     <tr>
-                        <th>거래처 코드</th>
-                        <th>거래처명</th>
-                        <th>국가</th>
-                        <th>담당자</th>
-                        <th>이메일</th>
-                        <th>전화</th>
-                        <th>관리</th>
+                        <th>${t('partners.col.code')}</th>
+                        <th>${t('partners.col.name')}</th>
+                        <th>${t('partners.col.country')}</th>
+                        <th>${t('partners.col.contact')}</th>
+                        <th>${t('partners.col.email')}</th>
+                        <th>${t('partners.col.phone')}</th>
+                        <th>${t('col.manage')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,8 +57,8 @@ function renderPartnersTable(partners) {
                 <td>${partner.email || '-'}</td>
                 <td>${partner.phone || '-'}</td>
                 <td>
-                    <button onclick='editPartner(${JSON.stringify(partner).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
-                    <button onclick="deletePartner(${partner.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                    <button onclick='editPartner(${JSON.stringify(partner).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">${t('btn.edit')}</button>
+                    <button onclick="deletePartner(${partner.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">${t('btn.delete')}</button>
                 </td>
             </tr>
         `;
@@ -87,51 +87,51 @@ function openPartnerModal(partner = null) {
     const isEdit = partner !== null;
     
     const html = `
-        <h2>${isEdit ? '거래처 수정' : '새 거래처 추가'}</h2>
+        <h2>${isEdit ? t('partners.modal.edit') : t('partners.modal.add')}</h2>
         
         <div class="form-group">
-            <label>거래처 코드</label>
+            <label>${t('partners.field.code')}</label>
             <input type="text" id="partnerCode" value="${partner?.partner_code || ''}" 
-                ${isEdit ? 'disabled' : ''} placeholder="예: PARTNER-001">
+                ${isEdit ? 'disabled' : ''} placeholder="${t('partners.placeholder.code')}">
         </div>
         
         <div class="form-group">
-            <label>거래처명</label>
-            <input type="text" id="partnerName" value="${partner?.partner_name || ''}" placeholder="거래처 이름">
+            <label>${t('partners.field.name')}</label>
+            <input type="text" id="partnerName" value="${partner?.partner_name || ''}" placeholder="${t('partners.placeholder.name')}">
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>국가</label>
-                <input type="text" id="country" value="${partner?.country || ''}" placeholder="중국, 미국 등">
+                <label>${t('partners.field.country')}</label>
+                <input type="text" id="country" value="${partner?.country || ''}" placeholder="${t('partners.placeholder.country')}">
             </div>
             
             <div class="form-group">
-                <label>담당자</label>
-                <input type="text" id="contactPerson" value="${partner?.contact_person || ''}" placeholder="담당자명">
+                <label>${t('partners.field.contact')}</label>
+                <input type="text" id="contactPerson" value="${partner?.contact_person || ''}" placeholder="${t('partners.placeholder.contact')}">
             </div>
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>이메일</label>
+                <label>${t('partners.field.email')}</label>
                 <input type="email" id="email" value="${partner?.email || ''}" placeholder="example@company.com">
             </div>
             
             <div class="form-group">
-                <label>전화</label>
+                <label>${t('partners.field.phone')}</label>
                 <input type="tel" id="phone" value="${partner?.phone || ''}" placeholder="+86-130-6261-9570">
             </div>
         </div>
         
         <div class="form-group">
-            <label>주소</label>
-            <textarea id="address" placeholder="회사 주소">${partner?.address || ''}</textarea>
+            <label>${t('partners.field.address')}</label>
+            <textarea id="address" placeholder="${t('partners.placeholder.address')}">${partner?.address || ''}</textarea>
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button onclick="savePartner(${partner?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
-            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+            <button onclick="savePartner(${partner?.id || 'null'})" class="btn-primary" style="flex: 1;">${t('btn.save')}</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">${t('btn.cancel')}</button>
         </div>
     `;
     
@@ -148,7 +148,7 @@ async function savePartner(id) {
     const address = document.getElementById('address').value.trim();
     
     if (!code || !name) {
-        alert('❌ 거래처 코드와 거래처명은 필수입니다.');
+        alert(t('partners.required'));
         return;
     }
     
@@ -165,23 +165,21 @@ async function savePartner(id) {
     try {
         let result;
         if (id) {
-            // 수정
             result = await dbUpdate('partners', id, data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 거래처가 수정되었습니다.');
+            alert(t('partners.updated'));
         } else {
-            // 새로 추가
             result = await dbInsert('partners', data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 거래처가 추가되었습니다.');
+            alert(t('partners.saved'));
         }
         
         closeModal();
         navigateTo('partners');
         
     } catch (e) {
-        console.error('거래처 저장 에러:', e);
-        alert(`❌ 저장 실패: ${e.message}`);
+        console.error('Partner save error:', e);
+        alert(`${t('error.save_failed')}${e.message}`);
     }
 }
 
@@ -190,17 +188,17 @@ async function editPartner(partner) {
 }
 
 async function deletePartner(id) {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t('confirm.delete'))) return;
     
     try {
         const result = await dbDelete('partners', id);
         if (result.error) throw new Error(result.error);
         
-        alert('✅ 거래처가 삭제되었습니다.');
+        alert(t('partners.deleted'));
         navigateTo('partners');
         
     } catch (e) {
-        console.error('거래처 삭제 에러:', e);
-        alert(`❌ 삭제 실패: ${e.message}`);
+        console.error('Partner delete error:', e);
+        alert(`${t('error.delete_failed')}${e.message}`);
     }
 }

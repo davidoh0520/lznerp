@@ -1,4 +1,4 @@
-// ===== 품목 관리 페이지 =====
+// ===== Items Page =====
 
 async function renderItems(container) {
     try {
@@ -6,8 +6,8 @@ async function renderItems(container) {
         
         let html = `
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button onclick="openItemModal()" class="btn-primary">➕ 새 품목 추가</button>
-                <input type="text" id="itemSearch" placeholder="품목명 또는 코드 검색..." 
+                <button onclick="openItemModal()" class="btn-primary">${t('items.add')}</button>
+                <input type="text" id="itemSearch" placeholder="${t('items.search')}" 
                     style="flex: 1; max-width: 300px;"
                     onkeyup="filterItemsTable()">
             </div>
@@ -20,14 +20,14 @@ async function renderItems(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('품목 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 품목 로드 실패: ${e.message}</p>`;
+        console.error('Items render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
 function renderItemsTable(items) {
     if (!items || items.length === 0) {
-        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 품목이 없습니다.</p>';
+        return `<p class="text-center" style="padding: 40px; color: var(--gray-500);">${t('items.no_data')}</p>`;
     }
     
     let html = `
@@ -35,12 +35,12 @@ function renderItemsTable(items) {
             <table>
                 <thead>
                     <tr>
-                        <th>품목 코드</th>
-                        <th>품목명</th>
-                        <th>HS 코드</th>
-                        <th>단위</th>
-                        <th>분류</th>
-                        <th>관리</th>
+                        <th>${t('items.col.code')}</th>
+                        <th>${t('items.col.name')}</th>
+                        <th>${t('items.col.hs_code')}</th>
+                        <th>${t('items.col.unit')}</th>
+                        <th>${t('items.col.category')}</th>
+                        <th>${t('col.manage')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,8 +55,8 @@ function renderItemsTable(items) {
                 <td>${item.unit || '-'}</td>
                 <td>${item.category || '-'}</td>
                 <td>
-                    <button onclick='editItem(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
-                    <button onclick="deleteItem(${item.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                    <button onclick='editItem(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">${t('btn.edit')}</button>
+                    <button onclick="deleteItem(${item.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">${t('btn.delete')}</button>
                 </td>
             </tr>
         `;
@@ -85,49 +85,49 @@ function openItemModal(item = null) {
     const isEdit = item !== null;
     
     const html = `
-        <h2>${isEdit ? '품목 수정' : '새 품목 추가'}</h2>
+        <h2>${isEdit ? t('items.modal.edit') : t('items.modal.add')}</h2>
         
         <div class="form-group">
-            <label>품목 코드</label>
+            <label>${t('items.field.code')}</label>
             <input type="text" id="itemCode" value="${item?.item_code || ''}" 
-                ${isEdit ? 'disabled' : ''} placeholder="예: ITEM-001">
+                ${isEdit ? 'disabled' : ''} placeholder="${t('items.placeholder.code')}">
         </div>
         
         <div class="form-group">
-            <label>품목명</label>
-            <input type="text" id="itemName" value="${item?.item_name || ''}" placeholder="의료 기계 부품">
+            <label>${t('items.field.name')}</label>
+            <input type="text" id="itemName" value="${item?.item_name || ''}" placeholder="${t('items.placeholder.name')}">
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>HS 코드</label>
+                <label>${t('items.field.hs_code')}</label>
                 <input type="text" id="hsCode" value="${item?.hs_code || ''}" placeholder="8466.91-0000">
             </div>
             
             <div class="form-group">
-                <label>단위</label>
+                <label>${t('items.field.unit')}</label>
                 <select id="unit">
-                    <option value="EA" ${item?.unit === 'EA' ? 'selected' : ''}>개 (EA)</option>
-                    <option value="KG" ${item?.unit === 'KG' ? 'selected' : ''}>킬로그램 (KG)</option>
-                    <option value="SET" ${item?.unit === 'SET' ? 'selected' : ''}>세트 (SET)</option>
-                    <option value="BOX" ${item?.unit === 'BOX' ? 'selected' : ''}>상자 (BOX)</option>
+                    <option value="EA" ${item?.unit === 'EA' ? 'selected' : ''}>${t('items.unit.ea')}</option>
+                    <option value="KG" ${item?.unit === 'KG' ? 'selected' : ''}>${t('items.unit.kg')}</option>
+                    <option value="SET" ${item?.unit === 'SET' ? 'selected' : ''}>${t('items.unit.set')}</option>
+                    <option value="BOX" ${item?.unit === 'BOX' ? 'selected' : ''}>${t('items.unit.box')}</option>
                 </select>
             </div>
         </div>
         
         <div class="form-group">
-            <label>분류</label>
-            <input type="text" id="category" value="${item?.category || ''}" placeholder="전자부품">
+            <label>${t('items.field.category')}</label>
+            <input type="text" id="category" value="${item?.category || ''}" placeholder="${t('items.placeholder.category')}">
         </div>
         
         <div class="form-group">
-            <label>설명</label>
-            <textarea id="description" placeholder="상세 설명...">${item?.description || ''}</textarea>
+            <label>${t('items.field.description')}</label>
+            <textarea id="description" placeholder="${t('items.placeholder.description')}">${item?.description || ''}</textarea>
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button onclick="saveItem(${item?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
-            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+            <button onclick="saveItem(${item?.id || 'null'})" class="btn-primary" style="flex: 1;">${t('btn.save')}</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">${t('btn.cancel')}</button>
         </div>
     `;
     
@@ -143,7 +143,7 @@ async function saveItem(id) {
     const description = document.getElementById('description').value.trim();
     
     if (!code || !name) {
-        alert('❌ 품목 코드와 품목명은 필수입니다.');
+        alert(t('items.required'));
         return;
     }
     
@@ -159,23 +159,21 @@ async function saveItem(id) {
     try {
         let result;
         if (id) {
-            // 수정
             result = await dbUpdate('items', id, data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 품목이 수정되었습니다.');
+            alert(t('items.updated'));
         } else {
-            // 새로 추가
             result = await dbInsert('items', data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 품목이 추가되었습니다.');
+            alert(t('items.saved'));
         }
         
         closeModal();
         navigateTo('items');
         
     } catch (e) {
-        console.error('품목 저장 에러:', e);
-        alert(`❌ 저장 실패: ${e.message}`);
+        console.error('Item save error:', e);
+        alert(`${t('error.save_failed')}${e.message}`);
     }
 }
 
@@ -184,17 +182,17 @@ async function editItem(item) {
 }
 
 async function deleteItem(id) {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t('confirm.delete'))) return;
     
     try {
         const result = await dbDelete('items', id);
         if (result.error) throw new Error(result.error);
         
-        alert('✅ 품목이 삭제되었습니다.');
+        alert(t('items.deleted'));
         navigateTo('items');
         
     } catch (e) {
-        console.error('품목 삭제 에러:', e);
-        alert(`❌ 삭제 실패: ${e.message}`);
+        console.error('Item delete error:', e);
+        alert(`${t('error.delete_failed')}${e.message}`);
     }
 }

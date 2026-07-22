@@ -1,4 +1,4 @@
-// ===== 수출 관리 페이지 =====
+// ===== Exports Page =====
 
 async function renderExports(container) {
     try {
@@ -6,13 +6,13 @@ async function renderExports(container) {
         
         let html = `
             <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button onclick="openExportModal()" class="btn-primary">➕ 새 수출 추가</button>
+                <button onclick="openExportModal()" class="btn-primary">${t('exports.add')}</button>
                 <select id="exportStatusFilter" onchange="filterExportsTable()" style="max-width: 150px;">
-                    <option value="">전체 상태</option>
-                    <option value="draft">임시</option>
-                    <option value="contract">계약</option>
-                    <option value="shipped">선적</option>
-                    <option value="completed">완료</option>
+                    <option value="">${t('exports.filter.all')}</option>
+                    <option value="draft">${t('status.draft')}</option>
+                    <option value="contract">${t('status.contract')}</option>
+                    <option value="shipped">${t('status.shipped')}</option>
+                    <option value="completed">${t('status.completed')}</option>
                 </select>
             </div>
             
@@ -24,14 +24,14 @@ async function renderExports(container) {
         container.innerHTML = html;
         
     } catch (e) {
-        console.error('수출 렌더링 에러:', e);
-        container.innerHTML = `<p class="text-center" style="color: var(--danger);">❌ 수출 로드 실패: ${e.message}</p>`;
+        console.error('Exports render error:', e);
+        container.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.load_failed')}${e.message}</p>`;
     }
 }
 
 function renderExportsTable(exports) {
     if (!exports || exports.length === 0) {
-        return '<p class="text-center" style="padding: 40px; color: var(--gray-500);">📭 수출 정보가 없습니다.</p>';
+        return `<p class="text-center" style="padding: 40px; color: var(--gray-500);">${t('exports.no_data')}</p>`;
     }
     
     let html = `
@@ -39,13 +39,13 @@ function renderExportsTable(exports) {
             <table>
                 <thead>
                     <tr>
-                        <th>수출 코드</th>
-                        <th>거래처</th>
-                        <th>상태</th>
-                        <th>수출 날짜</th>
-                        <th>선적일</th>
-                        <th>합계</th>
-                        <th>관리</th>
+                        <th>${t('exports.col.code')}</th>
+                        <th>${t('exports.col.partner')}</th>
+                        <th>${t('exports.col.status')}</th>
+                        <th>${t('exports.col.export_date')}</th>
+                        <th>${t('exports.col.shipment_date')}</th>
+                        <th>${t('exports.col.total')}</th>
+                        <th>${t('col.manage')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,8 +61,8 @@ function renderExportsTable(exports) {
                 <td>${formatDate(exp.shipment_date)}</td>
                 <td>${formatCurrency(exp.total_amount, exp.currency)}</td>
                 <td>
-                    <button onclick='editExport(${JSON.stringify(exp).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">✏️ 수정</button>
-                    <button onclick="deleteExport(${exp.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">🗑️ 삭제</button>
+                    <button onclick='editExport(${JSON.stringify(exp).replace(/'/g, "&apos;")})' class="btn-warning" style="margin-right: 4px; padding: 4px 8px; font-size: 0.8rem;">${t('btn.edit')}</button>
+                    <button onclick="deleteExport(${exp.id})" class="btn-danger" style="padding: 4px 8px; font-size: 0.8rem;">${t('btn.delete')}</button>
                 </td>
             </tr>
         `;
@@ -95,32 +95,32 @@ function openExportModal(exp = null) {
     const isEdit = exp !== null;
     
     const html = `
-        <h2>${isEdit ? '수출 수정' : '새 수출 추가'}</h2>
+        <h2>${isEdit ? t('exports.modal.edit') : t('exports.modal.add')}</h2>
         
         <div class="form-group">
-            <label>수출 코드</label>
+            <label>${t('exports.field.code')}</label>
             <input type="text" id="exportCode" value="${exp?.export_code || ''}" 
-                ${isEdit ? 'disabled' : ''} placeholder="예: EXP-240701-001">
+                ${isEdit ? 'disabled' : ''} placeholder="${t('exports.placeholder.code')}">
         </div>
         
         <div class="form-group">
-            <label>거래처</label>
-            <input type="number" id="partnerId" value="${exp?.partner_id || ''}" placeholder="거래처 ID">
+            <label>${t('exports.field.partner')}</label>
+            <input type="number" id="partnerId" value="${exp?.partner_id || ''}" placeholder="${t('exports.placeholder.partner')}">
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>상태</label>
+                <label>${t('exports.field.status')}</label>
                 <select id="status">
-                    <option value="draft" ${exp?.status === 'draft' ? 'selected' : ''}>임시</option>
-                    <option value="contract" ${exp?.status === 'contract' ? 'selected' : ''}>계약</option>
-                    <option value="shipped" ${exp?.status === 'shipped' ? 'selected' : ''}>선적</option>
-                    <option value="completed" ${exp?.status === 'completed' ? 'selected' : ''}>완료</option>
+                    <option value="draft" ${exp?.status === 'draft' ? 'selected' : ''}>${t('status.draft')}</option>
+                    <option value="contract" ${exp?.status === 'contract' ? 'selected' : ''}>${t('status.contract')}</option>
+                    <option value="shipped" ${exp?.status === 'shipped' ? 'selected' : ''}>${t('status.shipped')}</option>
+                    <option value="completed" ${exp?.status === 'completed' ? 'selected' : ''}>${t('status.completed')}</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>통화</label>
+                <label>${t('exports.field.currency')}</label>
                 <select id="currency">
                     <option value="CNY" ${exp?.currency === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
                     <option value="USD" ${exp?.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
@@ -131,26 +131,26 @@ function openExportModal(exp = null) {
         
         <div class="form-row">
             <div class="form-group">
-                <label>수출 날짜</label>
+                <label>${t('exports.field.export_date')}</label>
                 <input type="date" id="exportDate" value="${exp?.export_date || ''}">
             </div>
             
             <div class="form-group">
-                <label>선적일</label>
+                <label>${t('exports.field.shipment_date')}</label>
                 <input type="date" id="shipmentDate" value="${exp?.shipment_date || ''}">
             </div>
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>합계 금액</label>
+                <label>${t('exports.field.total')}</label>
                 <input type="number" id="totalAmount" value="${exp?.total_amount || ''}" placeholder="0.00" step="0.01">
             </div>
             
             <div class="form-group">
-                <label>Incoterms</label>
+                <label>${t('exports.field.incoterms')}</label>
                 <select id="incoterms">
-                    <option value="" ${!exp?.incoterms ? 'selected' : ''}>선택</option>
+                    <option value="" ${!exp?.incoterms ? 'selected' : ''}>${t('exports.incoterms.select')}</option>
                     <option value="FOB" ${exp?.incoterms === 'FOB' ? 'selected' : ''}>FOB</option>
                     <option value="CIF" ${exp?.incoterms === 'CIF' ? 'selected' : ''}>CIF</option>
                     <option value="CFR" ${exp?.incoterms === 'CFR' ? 'selected' : ''}>CFR</option>
@@ -161,8 +161,8 @@ function openExportModal(exp = null) {
         </div>
         
         <div style="display: flex; gap: 12px; margin-top: 24px;">
-            <button onclick="saveExport(${exp?.id || 'null'})" class="btn-primary" style="flex: 1;">💾 저장</button>
-            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">❌ 취소</button>
+            <button onclick="saveExport(${exp?.id || 'null'})" class="btn-primary" style="flex: 1;">${t('btn.save')}</button>
+            <button onclick="closeModal()" class="btn-secondary" style="flex: 1;">${t('btn.cancel')}</button>
         </div>
     `;
     
@@ -180,7 +180,7 @@ async function saveExport(id) {
     const incoterms = document.getElementById('incoterms').value;
     
     if (!exportCode || !partnerId) {
-        alert('❌ 수출 코드와 거래처는 필수입니다.');
+        alert(t('exports.required'));
         return;
     }
     
@@ -200,19 +200,19 @@ async function saveExport(id) {
         if (id) {
             result = await dbUpdate('exports', id, data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 수출이 수정되었습니다.');
+            alert(t('exports.updated'));
         } else {
             result = await dbInsert('exports', data);
             if (result.error) throw new Error(result.error);
-            alert('✅ 수출이 추가되었습니다.');
+            alert(t('exports.saved'));
         }
         
         closeModal();
         navigateTo('exports');
         
     } catch (e) {
-        console.error('수출 저장 에러:', e);
-        alert(`❌ 저장 실패: ${e.message}`);
+        console.error('Export save error:', e);
+        alert(`${t('error.save_failed')}${e.message}`);
     }
 }
 
@@ -221,17 +221,17 @@ async function editExport(exp) {
 }
 
 async function deleteExport(id) {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t('confirm.delete'))) return;
     
     try {
         const result = await dbDelete('exports', id);
         if (result.error) throw new Error(result.error);
         
-        alert('✅ 수출이 삭제되었습니다.');
+        alert(t('exports.deleted'));
         navigateTo('exports');
         
     } catch (e) {
-        console.error('수출 삭제 에러:', e);
-        alert(`❌ 삭제 실패: ${e.message}`);
+        console.error('Export delete error:', e);
+        alert(`${t('error.delete_failed')}${e.message}`);
     }
 }
