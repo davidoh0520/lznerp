@@ -4,6 +4,7 @@ const ITEM_REMARK_MAX_LENGTH = 1000;
 const ITEM_DRAWING_LIMIT = 3;
 const ITEM_DRAWING_MAX_SIZE = 10 * 1024 * 1024;
 const ITEM_DRAWINGS_BUCKET = 'item-drawings';
+const ITEM_PART_CATEGORY_ALIASES = new Set(['part', 'parts', 'component', 'components', 'spare part', 'spare parts', '零件', '部件', '配件']);
 const ITEM_DRAWING_ALLOWED_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'dwg']);
 const ITEM_DRAWING_ALLOWED_MIME_TYPES = new Set([
     'application/pdf',
@@ -62,7 +63,7 @@ function getFileExtension(name) {
 
 function isPartCategory(category) {
     const normalized = String(category || '').trim().toLowerCase();
-    return ['part', 'parts', 'component', 'components', 'spare part', 'spare parts', '零件', '部件', '配件'].includes(normalized);
+    return ITEM_PART_CATEGORY_ALIASES.has(normalized);
 }
 
 function formatFileSize(size) {
@@ -76,6 +77,17 @@ function getDrawingCountText(count) {
     return t('items.drawings.counter')
         .replace('{count}', String(count))
         .replace('{max}', String(ITEM_DRAWING_LIMIT));
+}
+
+function getSafeFileLabel(name) {
+    return String(name || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+}
+
+function canDeleteFromStorage(drawing) {
+    return Boolean(drawing?.storage_path && typeof deleteStorageFile === 'function' && supabase);
 }
 
 function getDrawingCountForItem(itemId, drawingCountMap) {
@@ -192,6 +204,7 @@ function filterItemsTable() {
 
 function openItemModal(item = null) {
     resetItemModalState();
+    window.__modalCleanup = resetItemModalState;
     itemModalState.itemId = item?.id || null;
     itemModalState.category = item?.category || '';
 
@@ -389,11 +402,11 @@ function validateDrawingFile(file) {
     const isAllowedType = ITEM_DRAWING_ALLOWED_MIME_TYPES.has(file.type) || ITEM_DRAWING_ALLOWED_EXTENSIONS.has(extension);
 
     if (!isAllowedType) {
-        return `${file.name}: ${t('items.drawings.invalid_type')}`;
+        return `${getSafeFileLabel(file.name)}: ${t('items.drawings.invalid_type')}`;
     }
 
     if (file.size > ITEM_DRAWING_MAX_SIZE) {
-        return `${file.name}: ${t('items.drawings.too_large').replace('{size}', '10MB')}`;
+        return `${getSafeFileLabel(file.name)}: ${t('items.drawings.too_large').replace('{size}', '10MB')}`;
     }
 
     return '';
@@ -425,7 +438,7 @@ function handleItemDrawingSelection(event) {
 
     files.forEach(file => {
         itemModalState.pendingDrawings.push({
-            tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            tempId: window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${file.name}-${file.size}`,
             file,
             name: file.name,
             size: file.size,
@@ -457,7 +470,7 @@ async function removeSavedDrawing(drawingId) {
         const result = await dbDelete('item_drawings', drawingId);
         if (result.error) throw new Error(result.error);
 
-        if (drawing.storage_path && typeof deleteStorageFile === 'function' && supabase) {
+        if (canDeleteFromStorage(drawing)) {
             const storageDelete = await deleteStorageFile(ITEM_DRAWINGS_BUCKET, drawing.storage_path);
             if (storageDelete.error) {
                 console.warn('Item drawing storage delete warning:', storageDelete.error);
@@ -477,7 +490,7 @@ async function readFileAsDataUrl(file) {
     return await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.onerror = () => reject(new Error(`Failed to read file ${getSafeFileLabel(file.name)}: ${reader.error?.message || 'Unknown error'}`));
         reader.readAsDataURL(file);
     });
 }
@@ -569,11 +582,18 @@ async function saveItem(id) {
         } else {
             result = await dbInsert('items', data);
             if (result.error) throw new Error(result.error);
-            id = result.data?.[0]?.id || id;
         }
 
+        let itemId = result.data?.[0]?.id || id;
+
         if (itemModalState.pendingDrawings.length > 0) {
-            const itemId = result.data?.[0]?.id || id;
+            if (!itemId) {
+                const { data: insertedItems } = await dbSelect('items', { item_code: code });
+                itemId = insertedItems?.[0]?.id || null;
+            }
+            if (!itemId) {
+                throw new Error(t('error.not_found'));
+            }
             await persistPendingItemDrawings(itemId);
         } else {
             resetItemModalState();
@@ -598,16 +618,17 @@ async function deleteItem(id) {
 
     try {
         const { data: drawings } = await dbSelect('item_drawings', { item_id: id });
-        for (const drawing of drawings || []) {
-            if (drawing.storage_path && typeof deleteStorageFile === 'function' && supabase) {
+        await Promise.all((drawings || []).map(async drawing => {
+            if (canDeleteFromStorage(drawing)) {
                 const storageDelete = await deleteStorageFile(ITEM_DRAWINGS_BUCKET, drawing.storage_path);
                 if (storageDelete.error) {
                     console.warn('Item drawing storage delete warning:', storageDelete.error);
                 }
             }
+
             const deleteResult = await dbDelete('item_drawings', drawing.id);
             if (deleteResult.error) throw new Error(deleteResult.error);
-        }
+        }));
 
         const result = await dbDelete('items', id);
         if (result.error) throw new Error(result.error);
@@ -620,9 +641,3 @@ async function deleteItem(id) {
         alert(`${t('error.delete_failed')}${e.message}`);
     }
 }
-
-const baseCloseModal = window.closeModal;
-window.closeModal = function() {
-    resetItemModalState();
-    baseCloseModal();
-};

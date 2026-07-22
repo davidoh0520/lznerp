@@ -123,7 +123,6 @@ CREATE TABLE IF NOT EXISTS documents (
 
 -- 인덱스 생성 (성능 최적화)
 CREATE INDEX IF NOT EXISTS idx_items_code ON items(item_code);
-CREATE INDEX IF NOT EXISTS idx_items_remark ON items(remark);
 CREATE INDEX IF NOT EXISTS idx_item_drawings_item ON item_drawings(item_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_item_drawings_item_sequence ON item_drawings(item_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_partners_code ON partners(partner_code);
@@ -207,6 +206,7 @@ CREATE INDEX IF NOT EXISTS idx_partners_tax_reg ON partners(tax_registration_num
 -- ===== Migration: Product management fields =====
 ALTER TABLE items ADD COLUMN IF NOT EXISTS remark TEXT;
 
+-- Repeated here so this migration block can be run independently on older databases.
 CREATE TABLE IF NOT EXISTS item_drawings (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -221,7 +221,6 @@ CREATE TABLE IF NOT EXISTS item_drawings (
 
 ALTER TABLE item_drawings ADD COLUMN IF NOT EXISTS storage_path TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_items_remark ON items(remark);
 CREATE INDEX IF NOT EXISTS idx_item_drawings_item ON item_drawings(item_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_item_drawings_item_sequence ON item_drawings(item_id, sequence);
 

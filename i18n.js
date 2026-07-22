@@ -637,10 +637,6 @@ const TRANSLATIONS = {
 
 const LANG_KEY = 'lzn_lang';
 let _currentLang = 'en';
-const FONT_STACKS = {
-    en: "'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif",
-    'zh-CN': "'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Heiti SC', 'WenQuanYi Micro Hei', sans-serif"
-};
 
 function getCurrentLang() {
     return _currentLang;
@@ -665,10 +661,9 @@ function t(key) {
 
 // Apply translations to static HTML elements with data-i18n attribute
 function applyI18n() {
-    document.documentElement.lang = _currentLang;
-    document.documentElement.style.setProperty('--app-font-family', FONT_STACKS[_currentLang] || FONT_STACKS.en);
-    if (window.Chart?.defaults?.font) {
-        window.Chart.defaults.font.family = FONT_STACKS[_currentLang] || FONT_STACKS.en;
+    const fontFamily = getComputedStyle(document.documentElement).getPropertyValue('--app-font-family').trim();
+    if (window.Chart?.defaults?.font && fontFamily) {
+        window.Chart.defaults.font.family = fontFamily;
     }
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
         const key = el.getAttribute('data-i18n');
@@ -702,6 +697,7 @@ function getLocale() {
     } else {
         _currentLang = 'en';
     }
+    document.documentElement.lang = _currentLang;
 })();
 
 // Expose globally

@@ -143,6 +143,11 @@ function openModal(html) {
 
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
+    if (typeof window.__modalCleanup === 'function') {
+        const cleanup = window.__modalCleanup;
+        window.__modalCleanup = null;
+        cleanup();
+    }
 }
 
 // ===== Common Table Rendering =====
