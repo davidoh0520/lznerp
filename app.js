@@ -122,6 +122,7 @@ async function navigateTo(page) {
             default:
                 content.innerHTML = `<p>${t('error.page_not_found')}</p>`;
         }
+        applyI18n();
     } catch (e) {
         console.error(e);
         content.innerHTML = `<p class="text-center" style="color: var(--danger);">${t('error.occurred')}${e.message}</p>`;
@@ -132,6 +133,7 @@ async function navigateTo(page) {
 function openModal(html) {
     document.getElementById('modalBody').innerHTML = html;
     document.getElementById('modal').classList.remove('hidden');
+    applyI18n();
 }
 
 function closeModal() {
