@@ -144,6 +144,10 @@ async function generatePartnerCode() {
         attempts++;
     } while (existingCodes.has(code) && attempts < 100);
 
+    if (existingCodes.has(code)) {
+        console.warn('generatePartnerCode: could not resolve collision after 100 attempts, returning best candidate');
+    }
+
     return code;
 }
 

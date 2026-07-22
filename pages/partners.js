@@ -93,7 +93,12 @@ async function openPartnerModal(partner = null) {
     let displayCode = partner?.partner_code || '';
     
     if (!isEdit) {
-        displayCode = await generatePartnerCode();
+        try {
+            displayCode = await generatePartnerCode();
+        } catch (e) {
+            console.error('generatePartnerCode error:', e);
+            displayCode = generateId('CUST-');
+        }
     }
     
     const country = partner?.country || '';
@@ -199,11 +204,8 @@ function onPartnerCountryChange() {
 }
 
 async function savePartner(id) {
-    // Clear previous inline errors
-    ['name', 'tax-reg-no', 'address', 'bank-name', 'bank-account-no', 'contact', 'phone'].forEach(f => {
-        const el = document.getElementById(`err-${f}`);
-        if (el) el.textContent = '';
-    });
+    // Clear all previous inline errors
+    document.querySelectorAll('.field-error').forEach(el => { el.textContent = ''; });
     
     const code = document.getElementById('partnerCode').value.trim();
     const name = document.getElementById('partnerName').value.trim();
