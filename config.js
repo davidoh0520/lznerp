@@ -125,6 +125,32 @@ function generateId(prefix) {
     return `${prefix}${y}${m}${d}-${seq}`;
 }
 
+async function generatePartnerCode() {
+    const date = new Date();
+    const y = String(date.getFullYear()).slice(2);
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+
+    let existingCodes = new Set();
+    try {
+        const { data } = await dbSelect('partners');
+        if (data) data.forEach(p => existingCodes.add(p.partner_code));
+    } catch (e) { /* ignore, collision is extremely unlikely */ }
+
+    let code;
+    let attempts = 0;
+    do {
+        const seq = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+        code = `CUST-${y}${m}-${seq}`;
+        attempts++;
+    } while (existingCodes.has(code) && attempts < 100);
+
+    if (existingCodes.has(code)) {
+        console.warn('generatePartnerCode: could not resolve collision after 100 attempts, returning best candidate');
+    }
+
+    return code;
+}
+
 function getStatusBadge(status) {
     const map = {
         'offer':     { key: 'status.offer',     cls: 'badge-info' },
@@ -343,6 +369,7 @@ window.TABLES = TABLES;
 window.formatDate = formatDate;
 window.formatCurrency = formatCurrency;
 window.generateId = generateId;
+window.generatePartnerCode = generatePartnerCode;
 window.getStatusBadge = getStatusBadge;
 window.dbSelect = dbSelect;
 window.dbInsert = dbInsert;
