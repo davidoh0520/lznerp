@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS partners (
     email TEXT,
     phone TEXT,
     address TEXT,
+    tax_registration_number TEXT,
+    bank_name TEXT,
+    bank_account_number TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -167,3 +170,13 @@ CREATE POLICY "Allow delete for all" ON payments FOR DELETE USING (true);
 CREATE POLICY "Allow insert for all" ON documents FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow update for all" ON documents FOR UPDATE USING (true);
 CREATE POLICY "Allow delete for all" ON documents FOR DELETE USING (true);
+
+-- ===== Migration: China customer profile fields =====
+-- Run this against an existing database to add new partner columns.
+-- Safe to run multiple times (IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS tax_registration_number TEXT;
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS bank_account_number TEXT;
+
+-- Index for tax registration number lookups
+CREATE INDEX IF NOT EXISTS idx_partners_tax_reg ON partners(tax_registration_number);
