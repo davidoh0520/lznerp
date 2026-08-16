@@ -176,7 +176,7 @@ async function openPartnerModal(partner = null) {
             
             <div class="form-group">
                 <label>${t('partners.field.phone')} <span class="china-req-mark" style="${reqStyle}; color:var(--danger)">*</span></label>
-                <input type="tel" id="phone" value="${partner?.phone || ''}" placeholder="+86-130-6261-9570">
+                <input type="tel" id="phone" value="${partner?.phone || ''}" placeholder="+86-000-0000-0000">
                 <small id="err-phone" class="field-error"></small>
             </div>
         </div>
