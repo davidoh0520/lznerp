@@ -51,7 +51,7 @@
   }
 
   async function signIn(email, redirectPage) {
-    const emailRedirectTo = new URL(redirectPage, window.location.href).href;
+    const emailRedirectTo = new URL(redirectPage, config.siteUrl || window.location.href).href;
     const { error } = await client.auth.signInWithOtp({
       email,
       options: { emailRedirectTo, shouldCreateUser: true }
