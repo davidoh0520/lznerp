@@ -1,4 +1,11 @@
-const adminState = { transactions: [], items: [], orders: [], invoices: [], drawings: [], notifications: [], accessMembers: [], suppliers: [], company: null, page: 'dashboard', poLines: 1 };
+const adminState = {
+  transactions: [], items: [], orders: [], orderItems: [], invoices: [], invoiceItems: [],
+  drawings: [], notifications: [], accessMembers: [], suppliers: [], company: null,
+  customer: null,
+  customerContacts: [], supplierQuotes: [], supplierQuoteItems: [], purchaseOrders: [],
+  purchaseOrderItems: [], contracts: [], contractItems: [], payments: [],
+  paymentAllocations: [], invoiceAllocations: [], page: 'dashboard', poLines: 1
+};
 
 document.addEventListener('DOMContentLoaded', initAdmin);
 
@@ -11,7 +18,7 @@ async function initAdmin() {
     await loadAdminData();
     renderAdminShell(root, activeSession.user.email);
     const requestedPage = new URLSearchParams(window.location.search).get('page');
-    renderAdminPage(['dashboard','ledger','items','orders','invoices','notifications','suppliers'].includes(requestedPage) ? requestedPage : 'dashboard');
+    renderAdminPage(['dashboard','workflow','ledger','items','orders','invoices','notifications','suppliers'].includes(requestedPage) ? requestedPage : 'dashboard');
     if (!ERP.passwordLoginReady(activeSession)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
     root.innerHTML = `<div class="empty"><h2>데이터 연결 오류</h2><p>${ERP.escapeHtml(error.message)}</p><a class="btn btn-soft" href="portal.html">포털로 돌아가기</a></div>`;
@@ -51,27 +58,53 @@ function renderAccessDenied(root, email) {
 }
 
 async function loadAdminData() {
-  const [transactions, items, orders, invoices, drawings, notifications, accessMembers, suppliers, company] = await Promise.all([
+  const [transactions, items, orders, orderItems, invoices, invoiceItems, drawings, notifications, accessMembers, suppliers, company, customerContacts, supplierQuotes, supplierQuoteItems, purchaseOrders, purchaseOrderItems, contracts, contractItems, payments, paymentAllocations, invoiceAllocations, customer] = await Promise.all([
     ERP.client.from('erp_v2_transactions').select('*').order('transaction_date', { ascending: false }).limit(1000),
     ERP.client.from('erp_v2_items').select('*').order('item_name').limit(1000),
     ERP.client.from('erp_v2_orders').select('*').order('requested_at', { ascending: false }),
+    ERP.client.from('erp_v2_order_items').select('*').order('created_at'),
     ERP.client.from('erp_v2_invoices').select('*').order('issue_date', { ascending: false }),
+    ERP.client.from('erp_v2_invoice_items').select('*').order('sequence'),
     ERP.client.from('erp_v2_drawings').select('*').order('created_at', { ascending: false }),
     ERP.client.from('erp_v2_notifications').select('*').order('created_at', { ascending: false }).limit(200),
     ERP.client.from('erp_v2_access_members').select('*').order('role').order('email'),
     ERP.client.from('erp_v2_suppliers').select('*').order('display_name'),
-    ERP.client.from('erp_v2_company_profile').select('*').eq('id', 1).maybeSingle()
+    ERP.client.from('erp_v2_company_profile').select('*').eq('id', 1).maybeSingle(),
+    ERP.client.from('erp_v2_customer_contacts').select('*').eq('customer_key', 'iineer').order('is_primary', { ascending: false }),
+    ERP.client.from('erp_v2_supplier_quotes').select('*').order('requested_at', { ascending: false }),
+    ERP.client.from('erp_v2_supplier_quote_items').select('*').order('sequence'),
+    ERP.client.from('erp_v2_purchase_orders').select('*').order('issue_date', { ascending: false }),
+    ERP.client.from('erp_v2_purchase_order_items').select('*').order('sequence'),
+    ERP.client.from('erp_v2_contracts').select('*').order('issue_date', { ascending: false }),
+    ERP.client.from('erp_v2_contract_items').select('*').order('sequence'),
+    ERP.client.from('erp_v2_payments').select('*').order('received_date', { ascending: false }),
+    ERP.client.from('erp_v2_payment_contract_allocations').select('*'),
+    ERP.client.from('erp_v2_invoice_contract_allocations').select('*'),
+    ERP.client.from('erp_v2_customers').select('*').eq('customer_key', 'iineer').maybeSingle()
   ]);
-  [transactions, items, orders, invoices, drawings, notifications, accessMembers, suppliers, company].forEach(result => { if (result.error) throw result.error; });
+  [transactions, items, orders, orderItems, invoices, invoiceItems, drawings, notifications, accessMembers, suppliers, company, customerContacts, supplierQuotes, supplierQuoteItems, purchaseOrders, purchaseOrderItems, contracts, contractItems, payments, paymentAllocations, invoiceAllocations, customer].forEach(result => { if (result.error) throw result.error; });
   adminState.transactions = transactions.data || [];
   adminState.items = items.data || [];
   adminState.orders = orders.data || [];
+  adminState.orderItems = orderItems.data || [];
   adminState.invoices = invoices.data || [];
+  adminState.invoiceItems = invoiceItems.data || [];
   adminState.drawings = drawings.data || [];
   adminState.notifications = notifications.data || [];
   adminState.accessMembers = accessMembers.data || [];
   adminState.suppliers = suppliers.data || [];
   adminState.company = company.data || null;
+  adminState.customerContacts = customerContacts.data || [];
+  adminState.supplierQuotes = supplierQuotes.data || [];
+  adminState.supplierQuoteItems = supplierQuoteItems.data || [];
+  adminState.purchaseOrders = purchaseOrders.data || [];
+  adminState.purchaseOrderItems = purchaseOrderItems.data || [];
+  adminState.contracts = contracts.data || [];
+  adminState.contractItems = contractItems.data || [];
+  adminState.payments = payments.data || [];
+  adminState.paymentAllocations = paymentAllocations.data || [];
+  adminState.invoiceAllocations = invoiceAllocations.data || [];
+  adminState.customer = customer.data || null;
 }
 
 function renderAdminShell(root, email) {
@@ -81,6 +114,7 @@ function renderAdminShell(root, email) {
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ERP <small>ADMIN CONSOLE</small></span></a>
       <nav class="nav">
         <button data-page="dashboard" onclick="renderAdminPage('dashboard')">대시보드</button>
+        <button data-page="workflow" onclick="renderAdminPage('workflow')">수주→선적 흐름</button>
         <button data-page="ledger" onclick="renderAdminPage('ledger')">통합 거래원장</button>
         <button data-page="items" onclick="renderAdminPage('items')">품목 · 도면</button>
         <button data-page="orders" onclick="renderAdminPage('orders')">한국 주문</button>
@@ -108,11 +142,12 @@ async function refreshAdmin() {
 }
 
 function renderAdminPage(page) {
-  if (!['dashboard','ledger','items','orders','invoices','notifications','suppliers'].includes(page)) page = 'dashboard';
+  if (!['dashboard','workflow','ledger','items','orders','invoices','notifications','suppliers'].includes(page)) page = 'dashboard';
   adminState.page = page;
   document.querySelectorAll('.nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.page === page));
   const meta = {
     dashboard: ['대시보드', '세후 매입·매출과 도면·주문 현황을 한눈에 확인합니다.'],
+    workflow: ['수주→선적 흐름', '도면 접수, 견적 승인, 발주, Contract, 수금, 분할·합산 Invoice를 연결합니다.'],
     ledger: ['통합 거래원장', '세전·세후 입력값을 모두 세후 금액으로 환산해 관리합니다.'],
     items: ['품목 · 도면', '제품과 가공분류, 최신 가격, 도면 매칭 상태를 관리합니다.'],
     orders: ['한국 주문', '한국에서 접수한 주문과 도면을 확인하고 견적·확정 상태를 관리합니다.'],
@@ -122,7 +157,7 @@ function renderAdminPage(page) {
   }[page];
   document.getElementById('adminTitle').textContent = meta[0];
   document.getElementById('adminSubtitle').textContent = meta[1];
-  ({ dashboard: renderDashboard, ledger: renderLedger, items: renderItems, orders: renderOrders, invoices: renderInvoices, notifications: renderNotifications, suppliers: renderSuppliers })[page]();
+  ({ dashboard: renderDashboard, workflow: renderWorkflow, ledger: renderLedger, items: renderItems, orders: renderOrders, invoices: renderInvoices, notifications: renderNotifications, suppliers: renderSuppliers })[page]();
 }
 
 function transactionAmount(row, side) {
@@ -332,14 +367,14 @@ function renderOrders() { document.getElementById('adminContent').innerHTML = `<
 
 function ordersTable(rows, manage) {
   if (!rows.length) return '<div class="empty">접수된 한국 주문이 없습니다.</div>';
-  return `<div class="table-wrap"><table><thead><tr><th>주문번호</th><th>회사</th><th>담당자</th><th>접수일</th><th>상태</th><th>도면</th>${manage?'<th>관리</th>':''}</tr></thead><tbody>${rows.map(o=>{const count=adminState.drawings.filter(d=>d.order_id===o.id).length;return `<tr><td><strong>${o.order_number}</strong><br><small>${ERP.escapeHtml(o.customer_po_number||'')}</small></td><td>${ERP.escapeHtml(o.company_name)}</td><td>${ERP.escapeHtml(o.contact_name)}<br><small>${ERP.escapeHtml(o.contact_email)}</small></td><td>${ERP.date(o.requested_at)}</td><td><span class="badge ${['confirmed','processing','shipped','completed'].includes(o.status)?'good':'warn'}">${ERP.statusLabel(o.status)}</span></td><td>${count?`<button class="btn btn-small btn-soft" onclick="openOrderDrawings('${o.id}')">${count}개 보기</button>`:'-'}</td>${manage?`<td><select onchange="updateOrderStatus('${o.id}',this.value)" style="min-width:120px">${['quote_requested','quoted','confirmed','processing','shipped','completed','cancelled'].map(s=>`<option value="${s}" ${o.status===s?'selected':''}>${ERP.statusLabel(s)}</option>`).join('')}</select></td>`:''}</tr>`}).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>주문번호</th><th>회사</th><th>담당자</th><th>접수일</th><th>진행 단계</th><th>도면</th>${manage?'<th>관리</th>':''}</tr></thead><tbody>${rows.map(o=>{const count=adminState.drawings.filter(d=>d.order_id===o.id).length;return `<tr><td><strong>${ERP.escapeHtml(o.order_number)}</strong><br><small>${ERP.escapeHtml(o.customer_po_number||'')}</small></td><td>${ERP.escapeHtml(o.company_name)}</td><td>${ERP.escapeHtml(o.contact_name)}<br><small>${ERP.escapeHtml(o.contact_email)}</small></td><td>${ERP.date(o.requested_at)}</td><td><span class="badge ${['payment_received','shipment_invoice','shipped','completed'].includes(o.workflow_stage)?'good':'warn'}">${ERP.escapeHtml(workflowStageLabel(o.workflow_stage))}</span></td><td>${count?`<button class="btn btn-small btn-soft" onclick="openOrderDrawings('${o.id}')">${count}개 보기</button>`:'-'}</td>${manage?`<td><select onchange="updateOrderStatus('${o.id}',this.value)" style="min-width:150px">${workflowStageOptions(o.workflow_stage)}</select> <button class="btn btn-small btn-primary" onclick="renderWorkflowOrder('${o.id}')">상세</button></td>`:''}</tr>`}).join('')}</tbody></table></div>`;
 }
 
-async function updateOrderStatus(id, status) {
-  const { error } = await ERP.client.from('erp_v2_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return ERP.toast(error.message, 'error');
-  ERP.toast(status === 'confirmed' ? '주문을 확정하고 인보이스 초안을 자동 생성했습니다.' : '주문 상태를 변경했습니다.', 'success');
-  await refreshAdmin();
+async function updateOrderStatus(id, stage) {
+  if (!await updateWorkflowStage(id, stage, false, false)) return;
+  await loadAdminData();
+  renderOrders();
+  ERP.toast(`${workflowStageLabel(stage)} 단계로 변경했습니다.`, 'success');
 }
 
 async function openOrderDrawings(orderId) {
@@ -356,20 +391,21 @@ async function openOrderDrawings(orderId) {
 
 function renderInvoices() {
   const rows = adminState.invoices;
-  document.getElementById('adminContent').innerHTML = `<div class="card card-pad">${rows.length?`<div class="table-wrap"><table><thead><tr><th>인보이스</th><th>발행일</th><th>Buyer</th><th>금액</th><th>상태</th><th>출력</th></tr></thead><tbody>${rows.map(i=>`<tr><td><strong>${i.invoice_number}</strong></td><td>${ERP.date(i.issue_date)}</td><td>${ERP.escapeHtml(i.buyer_name||'-')}<br><small>${ERP.escapeHtml(i.buyer_email||'')}</small></td><td>${ERP.money(i.total,i.currency)}</td><td><span class="badge ${i.status==='paid'?'good':'warn'}">${ERP.statusLabel(i.status)}</span></td><td><button class="btn btn-small btn-primary" onclick="printInvoice('${i.id}')">보기 · PDF</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">아직 생성된 인보이스가 없습니다. 주문을 확정하면 자동 생성됩니다.</div>'}</div>`;
+  document.getElementById('adminContent').innerHTML = `<div class="card card-pad"><div class="section-title"><div><h2>선적 Commercial Invoice</h2><p>여러 Contract 합산과 Contract 부분 선적을 지원합니다.</p></div><button class="btn btn-accent" onclick="renderShipmentInvoiceForm()">+ 선적 Invoice</button></div>${rows.length?`<div class="table-wrap"><table><thead><tr><th>인보이스</th><th>Contract</th><th>발행 / 선적</th><th>Buyer</th><th>금액</th><th>상태</th><th>출력</th></tr></thead><tbody>${rows.map(i=>`<tr><td><strong>${ERP.escapeHtml(i.invoice_number)}</strong></td><td>${invoiceContractReferences(i.id).length ? invoiceContractReferences(i.id).map(ERP.escapeHtml).join('<br>') : '-'}</td><td>${ERP.date(i.issue_date)}<br><small>${ERP.date(i.shipment_date)}</small></td><td>${ERP.escapeHtml(i.buyer_name||'-')}<br><small>${ERP.escapeHtml(i.buyer_email||'')}</small></td><td>${ERP.money(i.total,i.currency)}</td><td><span class="badge ${i.status==='paid'?'good':'warn'}">${ERP.statusLabel(i.status)}</span></td><td><button class="btn btn-small btn-primary" onclick="printInvoice('${i.id}')">보기 · PDF</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">아직 선적 Invoice가 없습니다. Contract를 만든 뒤 선적 수량을 선택해 작성하세요.</div>'}</div>`;
 }
 
 async function printInvoice(id) {
   const invoice = adminState.invoices.find(x => x.id === id);
   const { data: lines, error } = await ERP.client.from('erp_v2_invoice_items').select('*').eq('invoice_id', id).order('sequence');
   if (error) return ERP.toast(error.message,'error');
+  const contractRefs = invoiceContractReferences(id);
   const c = ERP.config.company;
   const sellerAddress = c.address ? `<small>${ERP.escapeHtml(c.address)}</small>` : '';
   const bankInfo = c.bank && c.swift
     ? `${ERP.escapeHtml(c.bank)}<br>${ERP.escapeHtml(c.bankAddress || '')}<br>Account (${invoice.currency}): ${ERP.escapeHtml(invoice.currency==='KRW'?c.accountKrw:invoice.currency==='CNY'?c.accountCny:c.accountUsd)}<br>SWIFT: ${ERP.escapeHtml(c.swift)}`
     : 'Payment instructions are supplied securely by LZN.';
   const popup = window.open('', '_blank');
-  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${invoice.invoice_number}</title><style>body{font-family:Arial,sans-serif;color:#172235;margin:42px}h1{letter-spacing:.08em}.head{display:flex;justify-content:space-between;border-bottom:3px solid #123b59;padding-bottom:20px}.meta{text-align:right}table{width:100%;border-collapse:collapse;margin-top:28px}th,td{border-bottom:1px solid #ccd6df;padding:11px;text-align:left}th{background:#eef3f6}.num{text-align:right}.totals{width:340px;margin:24px 0 0 auto}.bank{margin-top:35px;border:1px solid #ccd6df;padding:18px;background:#f7f9fb;font-size:12px;line-height:1.65}.actions{position:fixed;right:24px;top:20px}@media print{.actions{display:none}body{margin:18mm}}</style></head><body><button class="actions" onclick="print()">PDF / 인쇄</button><div class="head"><div><h1>COMMERCIAL INVOICE</h1><strong>${ERP.escapeHtml(c.name)}</strong>${sellerAddress}</div><div class="meta"><h2>${invoice.invoice_number}</h2><div>Issue: ${invoice.issue_date}</div><div>Due: ${invoice.due_date||'-'}</div><div>Status: ${ERP.statusLabel(invoice.status)}</div></div></div><h3>Bill To</h3><div><strong>${ERP.escapeHtml(invoice.buyer_name||'')}</strong><br>${ERP.escapeHtml(invoice.buyer_address||'')}<br>${ERP.escapeHtml(invoice.buyer_email||'')}</div><table><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>${(lines||[]).map((x,n)=>`<tr><td>${n+1}</td><td>${ERP.escapeHtml(x.description)}</td><td>${ERP.number(x.quantity,4)}</td><td>${x.unit}</td><td class="num">${ERP.money(x.unit_price,invoice.currency)}</td><td class="num">${ERP.money(x.amount,invoice.currency)}</td></tr>`).join('')}</tbody></table><table class="totals"><tr><td>Subtotal</td><td class="num">${ERP.money(invoice.subtotal,invoice.currency)}</td></tr><tr><td>Freight</td><td class="num">${ERP.money(invoice.freight,invoice.currency)}</td></tr><tr><td>Tax</td><td class="num">${ERP.money(invoice.tax,invoice.currency)}</td></tr><tr><td>Discount</td><td class="num">-${ERP.money(invoice.discount,invoice.currency)}</td></tr><tr><th>Total</th><th class="num">${ERP.money(invoice.total,invoice.currency)}</th></tr></table><div class="bank"><strong>Payment Information</strong><br>${bankInfo}</div></body></html>`);
+  popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${ERP.escapeHtml(invoice.invoice_number)}</title><style>body{font-family:Arial,sans-serif;color:#172235;margin:42px}h1{letter-spacing:.08em}.head{display:flex;justify-content:space-between;border-bottom:3px solid #123b59;padding-bottom:20px}.meta{text-align:right}table{width:100%;border-collapse:collapse;margin-top:28px}th,td{border-bottom:1px solid #ccd6df;padding:11px;text-align:left}th{background:#eef3f6}.num{text-align:right}.totals{width:340px;margin:24px 0 0 auto}.bank{margin-top:35px;border:1px solid #ccd6df;padding:18px;background:#f7f9fb;font-size:12px;line-height:1.65}.actions{position:fixed;right:24px;top:20px}@media print{.actions{display:none}body{margin:18mm}}</style></head><body><button class="actions" onclick="print()">PDF / 인쇄</button><div class="head"><div><h1>COMMERCIAL INVOICE</h1><strong>${ERP.escapeHtml(c.name)}</strong>${sellerAddress}</div><div class="meta"><h2>${ERP.escapeHtml(invoice.invoice_number)}</h2><div>Issue: ${invoice.issue_date}</div><div>Shipment: ${invoice.shipment_date||'-'}</div><div>Contract: ${contractRefs.length ? contractRefs.map(ERP.escapeHtml).join(', ') : '-'}</div><div>Status: ${ERP.statusLabel(invoice.status)}</div></div></div><h3>Bill To</h3><div><strong>${ERP.escapeHtml(invoice.buyer_name||'')}</strong><br>${ERP.escapeHtml(invoice.buyer_address||'')}<br>${ERP.escapeHtml(invoice.buyer_email||'')}</div><table><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>${(lines||[]).map((x,n)=>`<tr><td>${n+1}</td><td>${ERP.escapeHtml(x.description)}</td><td>${ERP.number(x.quantity,4)}</td><td>${ERP.escapeHtml(x.unit)}</td><td class="num">${ERP.money(x.unit_price,invoice.currency)}</td><td class="num">${ERP.money(x.amount,invoice.currency)}</td></tr>`).join('')}</tbody></table><table class="totals"><tr><td>Subtotal</td><td class="num">${ERP.money(invoice.subtotal,invoice.currency)}</td></tr><tr><td>Freight</td><td class="num">${ERP.money(invoice.freight,invoice.currency)}</td></tr><tr><td>Tax</td><td class="num">${ERP.money(invoice.tax,invoice.currency)}</td></tr><tr><td>Discount</td><td class="num">-${ERP.money(invoice.discount,invoice.currency)}</td></tr><tr><th>Total</th><th class="num">${ERP.money(invoice.total,invoice.currency)}</th></tr></table><div class="bank"><strong>Payment Information</strong><br>${bankInfo}</div></body></html>`);
   popup.document.documentElement.lang = 'en';
   popup.document.body.style.fontFamily = 'Arial, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", sans-serif';
   popup.document.close();

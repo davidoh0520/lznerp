@@ -13,7 +13,7 @@
       account.innerHTML = `
         <div class="assistant-message"><span class="status-light"></span><div><strong>업무실이 준비되었습니다.</strong><small>${ERP.escapeHtml(activeSession.user.email)}</small></div></div>
         <div class="top-actions">
-          <a class="btn btn-accent" href="admin.html">전체 대시보드</a>
+          <a class="btn btn-accent" href="admin.html?page=workflow">수주→선적 전체 흐름</a>
           <button class="btn btn-glass" type="button" onclick="ERP.signOut()">로그아웃</button>
         </div>`;
     } catch (error) {

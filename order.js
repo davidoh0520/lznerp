@@ -1,4 +1,4 @@
-const orderState = { session: null, orders: [], invoices: [], customer: null, lines: 1 };
+const orderState = { session: null, orders: [], invoices: [], customer: null, contacts: [], lines: 1 };
 
 document.addEventListener('DOMContentLoaded', initOrderPortal);
 
@@ -62,13 +62,14 @@ async function loadMyOrders() {
 }
 
 async function loadKoreanCustomer() {
-  const { data, error } = await ERP.client
-    .from('erp_v2_customers')
-    .select('customer_key,display_name,address,phone,fax')
-    .eq('customer_key', 'iineer')
-    .single();
-  if (error) throw error;
-  orderState.customer = data;
+  const [customer, contacts] = await Promise.all([
+    ERP.client.from('erp_v2_customers').select('customer_key,display_name,address,phone,fax').eq('customer_key', 'iineer').single(),
+    ERP.client.from('erp_v2_customer_contacts').select('*').eq('customer_key', 'iineer').eq('active', true).order('is_primary', { ascending: false })
+  ]);
+  if (customer.error) throw customer.error;
+  if (contacts.error) throw contacts.error;
+  orderState.customer = customer.data;
+  orderState.contacts = contacts.data || [];
 }
 
 function renderOrderPortal(root) {
@@ -76,7 +77,7 @@ function renderOrderPortal(root) {
   root.innerHTML = `
     <aside class="sidebar">
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN SALES <small>ORDER MANAGEMENT</small></span></a>
-      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 수주 입력</button><button onclick="showOrderSection('history',this)">수주 내역</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="admin.html?page=suppliers">발주관리</a><a href="drawings.html">도면관리</a></nav>
+      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 수주 입력</button><button onclick="showOrderSection('history',this)">수주 내역</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="admin.html?page=workflow">수주→선적 흐름</a><a href="admin.html?page=suppliers">발주관리</a><a href="drawings.html">도면관리</a></nav>
       <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
@@ -91,7 +92,7 @@ function showOrderSection(section, button) {
   button?.classList.add('active');
   if (section === 'new') { setOrderTitle('새 수주 입력','한국 거래처 iiNEER 주문을 입력하고 관련 도면을 연결합니다.'); renderNewOrder(); }
   if (section === 'history') { setOrderTitle('수주 내역','iiNEER 주문의 견적·제작·출고 상태를 확인합니다.'); renderMyOrders(); }
-  if (section === 'invoice') { setOrderTitle('인보이스','확정 주문에서 생성된 인보이스를 확인하고 PDF로 저장합니다.'); renderMyInvoices(); }
+  if (section === 'invoice') { setOrderTitle('선적 인보이스','Contract와 실제 선적 수량으로 만든 Commercial Invoice를 확인합니다.'); renderMyInvoices(); }
 }
 
 function setOrderTitle(title, subtitle) { document.getElementById('orderTitle').textContent = title; document.getElementById('orderSubtitle').textContent = subtitle; }
@@ -99,12 +100,13 @@ function setOrderTitle(title, subtitle) { document.getElementById('orderTitle').
 function renderNewOrder() {
   orderState.lines = 1;
   const customer = orderState.customer;
+  const primaryContact = orderState.contacts.find(contact => contact.is_primary) || orderState.contacts[0] || { contact_name: '', email: '' };
   document.getElementById('orderContent').innerHTML = `
     <form id="orderForm" class="card form-card" onsubmit="submitOrder(event)">
       <section class="form-section"><h2>1. 한국 거래처와 담당자</h2><p>한국 거래처는 iiNEER Co., Ltd. 한 곳으로 고정되어 있습니다. 담당자 정보만 입력해 주세요.</p><div class="form-grid">
         <div class="field"><label>회사명</label><input id="companyName" required readonly value="${ERP.escapeHtml(customer.display_name)}"></div>
-        <div class="field"><label>담당자 *</label><input id="contactName" required></div>
-        <div class="field"><label>담당자 이메일 *</label><input id="contactEmail" type="email" required placeholder="iiNEER 담당자 이메일"></div>
+        <div class="field"><label>담당자 *</label><input id="contactName" required value="${ERP.escapeHtml(primaryContact.contact_name)}"></div>
+        <div class="field"><label>담당자 이메일 *</label><select id="contactEmail" required>${orderState.contacts.map(contact => `<option value="${ERP.escapeHtml(contact.email)}">${ERP.escapeHtml(contact.email)}${contact.is_primary ? ' · 기본' : ''}</option>`).join('') || `<option>${ERP.escapeHtml(primaryContact.email)}</option>`}</select></div>
         <div class="field"><label>전화 / 팩스</label><input id="contactPhone" readonly value="${ERP.escapeHtml(`${customer.phone || '-'} · FAX ${customer.fax || '-'}`)}"></div>
         <div class="field full"><label>배송 주소</label><input id="shippingAddress" readonly value="${ERP.escapeHtml(customer.address || '')}"></div>
         <div class="field"><label>고객 PO 번호</label><input id="customerPo" placeholder="선택 입력"></div>
@@ -112,7 +114,7 @@ function renderNewOrder() {
       </div></section>
       <section class="form-section"><div class="section-title"><div><h2>2. 주문 품목</h2><p style="margin:5px 0 0;color:var(--muted)">도면에 품명이 있더라도 검색을 위해 간단히 작성해 주세요.</p></div><button class="btn btn-soft" type="button" onclick="addOrderLine()">+ 품목 추가</button></div><div id="orderLines">${orderLineHtml(0)}</div></section>
       <section class="form-section"><h2>3. 도면 업로드</h2><p>한 품목의 DWG·PDF·STP 세트 또는 판금처럼 필요한 파일만 선택해도 됩니다.</p><div class="dropzone"><strong>도면 파일 선택</strong><div class="help">DWG, PDF, STP/STEP, PNG, JPG · 파일당 최대 50MB · 여러 개 선택 가능</div><input id="drawingFiles" type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg"></div></section>
-      <section class="form-section"><h2>4. 요청 사항</h2><div class="field"><label>납기·포장·검사 등 추가 요청</label><textarea id="orderNotes" placeholder="예: 샘플 5개 우선, 검사성적서 필요"></textarea></div><div style="display:flex;justify-content:flex-end;margin-top:18px"><button id="submitOrderBtn" class="btn btn-accent" type="submit">견적 요청 보내기</button></div></section>
+      <section class="form-section"><h2>4. 요청 사항</h2><div class="field"><label>납기·포장·검사 등 추가 요청</label><textarea id="orderNotes" placeholder="예: 샘플 5개 우선, 검사성적서 필요"></textarea></div><div style="display:flex;justify-content:flex-end;margin-top:18px"><button id="submitOrderBtn" class="btn btn-accent" type="submit">수주 저장</button></div></section>
     </form>`;
 }
 
@@ -138,7 +140,9 @@ async function submitOrder(event) {
       currency: document.getElementById('orderCurrency').value,
       customer_po_number: document.getElementById('customerPo').value.trim() || null,
       notes: document.getElementById('orderNotes').value.trim() || null,
-      status: 'quote_requested'
+      status: 'quote_requested',
+      customer_key: 'iineer',
+      workflow_stage: 'order_received'
     };
     const { data: order, error: orderError } = await ERP.client.from('erp_v2_orders').insert(orderPayload).select().single();
     if (orderError) throw orderError;
@@ -163,22 +167,31 @@ async function submitOrder(event) {
       if (drawingError) throw drawingError;
     }
 
+    if (files.length) {
+      const { error: stageError } = await ERP.client.from('erp_v2_orders').update({ workflow_stage: 'drawing_received', drawing_received_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', order.id);
+      if (stageError) throw stageError;
+    }
+
     ERP.toast(`주문 ${order.order_number}이 접수되었습니다.`, 'success');
     await loadMyOrders();
     showOrderSection('history', document.querySelectorAll('.nav button')[1]);
   } catch (error) {
     ERP.toast(error.message, 'error');
   } finally {
-    button.disabled = false; button.textContent = '견적 요청 보내기';
+    button.disabled = false; button.textContent = '수주 저장';
   }
 }
 
 function renderMyOrders() {
-  document.getElementById('orderContent').innerHTML = `<div class="card card-pad">${orderState.orders.length ? `<div class="table-wrap"><table><thead><tr><th>주문번호</th><th>회사</th><th>접수일</th><th>PO 번호</th><th>통화</th><th>상태</th></tr></thead><tbody>${orderState.orders.map(o=>`<tr><td><strong>${o.order_number}</strong></td><td>${ERP.escapeHtml(o.company_name)}</td><td>${ERP.date(o.requested_at)}</td><td>${ERP.escapeHtml(o.customer_po_number||'-')}</td><td>${o.currency}</td><td><span class="badge ${['confirmed','processing','shipped','completed'].includes(o.status)?'good':'warn'}">${ERP.statusLabel(o.status)}</span></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">아직 접수한 주문이 없습니다.</div>'}</div>`;
+  document.getElementById('orderContent').innerHTML = `<div class="card card-pad">${orderState.orders.length ? `<div class="table-wrap"><table><thead><tr><th>주문번호</th><th>회사</th><th>접수일</th><th>PO 번호</th><th>통화</th><th>진행 단계</th></tr></thead><tbody>${orderState.orders.map(o=>`<tr><td><strong>${o.order_number}</strong></td><td>${ERP.escapeHtml(o.company_name)}</td><td>${ERP.date(o.requested_at)}</td><td>${ERP.escapeHtml(o.customer_po_number||'-')}</td><td>${o.currency}</td><td><span class="badge ${['payment_received','shipment_invoice','shipped','completed'].includes(o.workflow_stage)?'good':'warn'}">${ERP.escapeHtml(orderWorkflowLabel(o.workflow_stage))}</span></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">아직 접수한 주문이 없습니다.</div>'}</div>`;
+}
+
+function orderWorkflowLabel(stage) {
+  return ({ order_received:'수주 접수', drawing_received:'도면 접수', supplier_quote_requested:'공급사 견적 요청', supplier_quote_received:'견적 도착', customer_approval_pending:'iiNEER 가격 확인', customer_approved:'가격 승인', purchase_ordered:'발주 완료', contract_sent:'Contract 전달', payment_pending:'수금 대기', payment_received:'수금 완료', production:'제작 중', shipment_invoice:'선적 Invoice', shipped:'선적 완료', completed:'완료', cancelled:'취소' })[stage] || '수주 접수';
 }
 
 function renderMyInvoices() {
-  document.getElementById('orderContent').innerHTML = `<div class="card card-pad">${orderState.invoices.length ? `<div class="table-wrap"><table><thead><tr><th>인보이스</th><th>발행일</th><th>금액</th><th>상태</th><th></th></tr></thead><tbody>${orderState.invoices.map(i=>`<tr><td><strong>${i.invoice_number}</strong></td><td>${ERP.date(i.issue_date)}</td><td>${ERP.money(i.total,i.currency)}</td><td><span class="badge ${i.status==='paid'?'good':'warn'}">${ERP.statusLabel(i.status)}</span></td><td><button class="btn btn-small btn-primary" onclick="printCustomerInvoice('${i.id}')">보기 · PDF</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">주문이 확정되면 인보이스가 자동 생성됩니다.</div>'}</div>`;
+  document.getElementById('orderContent').innerHTML = `<div class="card card-pad">${orderState.invoices.length ? `<div class="table-wrap"><table><thead><tr><th>인보이스</th><th>발행일</th><th>선적일</th><th>금액</th><th>상태</th><th></th></tr></thead><tbody>${orderState.invoices.map(i=>`<tr><td><strong>${i.invoice_number}</strong></td><td>${ERP.date(i.issue_date)}</td><td>${ERP.date(i.shipment_date)}</td><td>${ERP.money(i.total,i.currency)}</td><td><span class="badge ${i.status==='paid'?'good':'warn'}">${ERP.statusLabel(i.status)}</span></td><td><button class="btn btn-small btn-primary" onclick="printCustomerInvoice('${i.id}')">보기 · PDF</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Contract를 만든 뒤 실제 선적 수량으로 Invoice를 작성하세요.</div>'}</div>`;
 }
 
 async function printCustomerInvoice(id) {
