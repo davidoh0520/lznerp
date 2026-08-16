@@ -4,24 +4,24 @@ const CONFIG = {
     // Supabase settings
     supabase: {
         url: 'https://snyvexlqpxpqjswizszz.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNueXZleGxxcHhwcWpzd2l6c3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEzOTEwNzgsImV4cCI6MjAzNjk2NzA3OH0.sb_publishable_wEQsmWUREF_lKiYm27jF_g_MlAEiomd'
+        anonKey: 'sb_publishable_wEQsmWUREF_lKiYm27jF_g_MlAEiomd'
     },
     
     // Company info (LZN MEDICAL)
     company: {
         name: 'LZN MEDICAL CO., LTD.',
-        name_cn: '上海流健医疗器械有限公司',
-        tax_id: '91310000MADA78LU9J',
-        address: '上海市闵行区虹井路120弄1号895室',
-        address_en: 'Room 895, Building 1, Lane 120 Hongjing Road, Minhang District, Shanghai, China',
-        phone: '+86-130-6261-9570',
-        bank: '友利银行(中国)有限公司上海锦绣江南支行',
-        bank_en: 'Woori Bank(China) Limited Shanghai JinXiuJiangNan Sub-Branch',
-        bank_address: 'No.101-1,101-2b,102 MT BLDG, 3999 Hongxin Road, Minhang District, Shanghai',
-        bank_account_cny: '100103205888',
-        bank_account_krw: '100103214418',
-        bank_account_usd: '100103205899',
-        swift: 'HVBKCNBJ'
+        name_cn: '',
+        tax_id: '',
+        address: '',
+        address_en: '',
+        phone: '',
+        bank: '',
+        bank_en: '',
+        bank_address: '',
+        bank_account_cny: '',
+        bank_account_krw: '',
+        bank_account_usd: '',
+        swift: ''
     },
     
     // Default customs unit mapping by HS code

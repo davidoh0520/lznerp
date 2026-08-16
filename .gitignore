@@ -1,0 +1,8 @@
+# Confidential local data export. Never publish pricing or local drawing paths.
+supabase/seed.sql
+
+# Local tooling output
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
