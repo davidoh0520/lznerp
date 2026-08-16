@@ -10,7 +10,8 @@ async function initAdmin() {
     if (!(await ERP.isAdmin())) return renderAccessDenied(root, activeSession.user.email);
     await loadAdminData();
     renderAdminShell(root, activeSession.user.email);
-    renderAdminPage('dashboard');
+    const requestedPage = new URLSearchParams(window.location.search).get('page');
+    renderAdminPage(['dashboard','ledger','items','orders','invoices','notifications','suppliers'].includes(requestedPage) ? requestedPage : 'dashboard');
     if (!ERP.passwordLoginReady(activeSession)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
     root.innerHTML = `<div class="empty"><h2>데이터 연결 오류</h2><p>${ERP.escapeHtml(error.message)}</p><a class="btn btn-soft" href="portal.html">포털로 돌아가기</a></div>`;
@@ -46,7 +47,7 @@ async function loginAdmin(event) {
 
 function renderAccessDenied(root, email) {
   root.className = 'landing';
-  root.innerHTML = `<div class="landing-shell" style="max-width:650px;padding-top:10vh"><div class="access-card"><h2>관리자 권한이 없습니다</h2><p>${ERP.escapeHtml(email)} 계정은 한국 주문 포털을 이용할 수 있지만 내부 거래 원장은 볼 수 없습니다.</p><div class="top-actions"><a class="btn btn-accent" href="order.html">주문 포털</a><button class="btn btn-soft" onclick="ERP.signOut()">로그아웃</button></div></div></div>`;
+  root.innerHTML = `<div class="landing-shell" style="max-width:650px;padding-top:10vh"><div class="access-card"><h2>대표 전용 ERP입니다</h2><p>${ERP.escapeHtml(email)} 계정은 내부 데이터에 접근할 수 없습니다.</p><div class="top-actions"><button class="btn btn-primary" onclick="ERP.signOut()">다른 계정으로 로그인</button><a class="btn btn-soft" href="portal.html">메인으로</a></div></div></div>`;
 }
 
 async function loadAdminData() {
@@ -85,14 +86,13 @@ function renderAdminShell(root, email) {
         <button data-page="orders" onclick="renderAdminPage('orders')">한국 주문</button>
         <button data-page="invoices" onclick="renderAdminPage('invoices')">인보이스</button>
         <button data-page="notifications" onclick="renderAdminPage('notifications')">알림 ${notificationBadge()}</button>
-        <button data-page="access" onclick="renderAdminPage('access')">도면 권한</button>
         <button data-page="suppliers" onclick="renderAdminPage('suppliers')">업체 · 발주서</button>
         <a href="drawings.html">도면 보관함</a>
       </nav>
       <div class="sidebar-footer"><div>${ERP.escapeHtml(email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1 id="adminTitle">대시보드</h1><p id="adminSubtitle">구매·판매·도면·주문 현황을 한눈에 확인합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면 보관함</a><button class="btn btn-soft" onclick="refreshAdmin()">새로고침</button><a class="btn btn-accent" href="order.html">주문 포털 보기</a></div></header>
+      <header class="topbar"><div><h1 id="adminTitle">대시보드</h1><p id="adminSubtitle">구매·판매·도면·주문 현황을 한눈에 확인합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면관리</a><button class="btn btn-soft" onclick="refreshAdmin()">새로고침</button><a class="btn btn-accent" href="order.html">수주관리</a></div></header>
       <section id="adminContent"></section>
     </main>`;
 }
@@ -108,6 +108,7 @@ async function refreshAdmin() {
 }
 
 function renderAdminPage(page) {
+  if (!['dashboard','ledger','items','orders','invoices','notifications','suppliers'].includes(page)) page = 'dashboard';
   adminState.page = page;
   document.querySelectorAll('.nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.page === page));
   const meta = {
@@ -116,13 +117,12 @@ function renderAdminPage(page) {
     items: ['품목 · 도면', '제품과 가공분류, 최신 가격, 도면 매칭 상태를 관리합니다.'],
     orders: ['한국 주문', '한국에서 접수한 주문과 도면을 확인하고 견적·확정 상태를 관리합니다.'],
     invoices: ['인보이스', '주문 확정 시 자동 생성된 인보이스를 발행하고 출력합니다.']
-    ,notifications: ['관리자 알림', 'IINEER 도면 변경과 신규·수정 오더를 확인합니다.']
-    ,access: ['도면 권한', '한국 IINEER와 공급사 이메일의 도면 접근 범위를 관리합니다.']
+    ,notifications: ['관리자 알림', '도면 변경과 신규·수정 오더를 확인합니다.']
     ,suppliers: ['업체 · 발주서', '주문서 양식에서 정리한 업체 정보로 발주서를 작성합니다.']
   }[page];
   document.getElementById('adminTitle').textContent = meta[0];
   document.getElementById('adminSubtitle').textContent = meta[1];
-  ({ dashboard: renderDashboard, ledger: renderLedger, items: renderItems, orders: renderOrders, invoices: renderInvoices, notifications: renderNotifications, access: renderAccess, suppliers: renderSuppliers })[page]();
+  ({ dashboard: renderDashboard, ledger: renderLedger, items: renderItems, orders: renderOrders, invoices: renderInvoices, notifications: renderNotifications, suppliers: renderSuppliers })[page]();
 }
 
 function renderDashboard() {
