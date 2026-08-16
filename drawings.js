@@ -18,6 +18,7 @@ async function initDrawingLibrary() {
     await loadDrawingLibrary();
     renderDrawingShell(root);
     renderDrawingTable();
+    if (!ERP.passwordLoginReady(drawingState.session)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
     root.innerHTML = `<div class="empty"><h2>도면 연결 오류</h2><p>${ERP.escapeHtml(error.message)}</p><a class="btn btn-soft" href="portal.html">메인 포털</a></div>`;
   }
@@ -30,20 +31,25 @@ function renderDrawingLogin(root) {
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN DRAWINGS <small>VERSION CONTROL</small></span></a>
       <div class="access-card" style="margin-top:44px">
         <h2>도면 보관함 로그인</h2>
-        <p>관리자, 한국 IINEER, 등록된 공급사 이메일로 로그인합니다.</p>
-        <div class="auth-row"><input id="drawingEmail" type="email" placeholder="name@company.com"><button class="btn btn-primary" onclick="sendDrawingLink()">로그인 링크</button></div>
-        <div class="auth-note">링크는 같은 브라우저에서 열어 주세요. 공급사는 자기 업체가 담당한 품목만 열 수 있습니다.</div>
+        <p>관리자, 한국 IINEER, 등록된 공급사가 이메일 아이디와 비밀번호로 로그인합니다.</p>
+        <form class="auth-login-grid" onsubmit="loginDrawing(event)">
+          <input id="drawingEmail" type="email" autocomplete="username" value="${ERP.escapeHtml(ERP.rememberedEmail())}" placeholder="이메일 아이디" required>
+          <input id="drawingPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+          <button class="btn btn-primary" type="submit">로그인</button>
+        </form>
+        <div class="auth-note">등록된 계정만 로그인할 수 있으며 공급사는 자기 업체 담당 품목만 열 수 있습니다.</div>
       </div>
     </div>`;
 }
 
-async function sendDrawingLink() {
+async function loginDrawing(event) {
+  event.preventDefault();
   const email = document.getElementById('drawingEmail').value.trim().toLowerCase();
-  if (!email) return ERP.toast('이메일을 입력해 주세요.', 'error');
+  const password = document.getElementById('drawingPassword').value;
+  if (!email || !password) return ERP.toast('이메일과 비밀번호를 입력해 주세요.', 'error');
   try {
-    localStorage.setItem('erp-login-target', 'drawings.html');
-    await ERP.signIn(email, 'portal.html');
-    ERP.toast('이메일로 로그인 링크를 보냈습니다.', 'success');
+    await ERP.signInWithPassword(email, password);
+    window.location.reload();
   } catch (error) {
     ERP.toast(error.message, 'error');
   }
@@ -79,7 +85,7 @@ function renderDrawingShell(root) {
     <aside class="sidebar">
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN DRAWINGS <small>CONTROLLED FILES</small></span></a>
       <nav class="nav"><button class="active">도면 보관함</button><a href="order.html">주문 포털</a>${drawingState.role === 'owner' ? '<a href="admin.html">관리자 ERP</a>' : ''}</nav>
-      <div class="sidebar-footer"><div><span class="badge good">${roleLabel()}</span><br>${ERP.escapeHtml(drawingState.session.user.email)}</div><button onclick="ERP.signOut()">로그아웃</button></div>
+      <div class="sidebar-footer"><div><span class="badge good">${roleLabel()}</span><br>${ERP.escapeHtml(drawingState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
       <header class="topbar"><div><h1>도면 보관함</h1><p>PDF는 브라우저에서 바로 보고, DWG·STP는 내려받아 CAD에서 열 수 있습니다. 교체본은 기존 버전을 보존합니다.</p></div><div class="top-actions"><button class="btn btn-soft" onclick="refreshDrawingLibrary()">새로고침</button>${canEditDrawings() ? '<label class="btn btn-accent file-button">폴더 최신본 동기화<input id="folderDrawingFiles" type="file" webkitdirectory directory multiple onchange="syncDrawingFolder(this.files)"></label>' : ''}</div></header>

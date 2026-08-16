@@ -9,6 +9,7 @@ async function initOrderPortal() {
     if (!orderState.session) return renderOrderLogin(root);
     await loadMyOrders();
     renderOrderPortal(root);
+    if (!ERP.passwordLoginReady(orderState.session)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
     root.innerHTML = `<div class="empty"><h2>연결 오류</h2><p>${ERP.escapeHtml(error.message)}</p><a href="portal.html" class="btn btn-soft">포털로 돌아가기</a></div>`;
   }
@@ -22,18 +23,24 @@ function renderOrderLogin(root) {
       <div class="access-card" style="margin-top:42px">
         <div class="eyebrow" style="color:#a7730a">Secure drawing upload</div>
         <h2 style="margin-top:10px">한국 주문 로그인</h2>
-        <p>이메일로 받은 일회용 링크를 열면 주문 작성, 도면 업로드, 진행 상태와 인보이스 확인이 가능합니다.</p>
-        <div class="auth-row"><input id="orderEmail" type="email" placeholder="name@company.com"><button class="btn btn-accent" onclick="sendOrderLink()">로그인 링크</button></div>
-        <div class="auth-note">처음 사용하는 이메일도 가입할 수 있습니다. 업로드한 도면은 본인과 LZN 관리자만 볼 수 있습니다.</div>
+        <p>이메일 아이디와 비밀번호로 주문 작성, 도면 업로드, 진행 상태와 인보이스 확인이 가능합니다.</p>
+        <form class="auth-login-grid" onsubmit="loginOrder(event)">
+          <input id="orderEmail" type="email" autocomplete="username" value="${ERP.escapeHtml(ERP.rememberedEmail())}" placeholder="이메일 아이디" required>
+          <input id="orderPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+          <button class="btn btn-accent" type="submit">로그인</button>
+        </form>
+        <div class="auth-note">등록된 계정만 로그인할 수 있습니다. 업로드한 도면은 본인과 LZN 관리자만 볼 수 있습니다.</div>
         <a href="portal.html" style="display:inline-block;margin-top:22px;color:#607489;font-size:13px">← 메인 포털</a>
       </div>
     </div>`;
 }
 
-async function sendOrderLink() {
+async function loginOrder(event) {
+  event.preventDefault();
   const email = document.getElementById('orderEmail').value.trim();
-  if (!email) return ERP.toast('이메일을 입력해 주세요.', 'error');
-  try { await ERP.signIn(email, 'order.html'); ERP.toast('이메일로 로그인 링크를 보냈습니다.', 'success'); }
+  const password = document.getElementById('orderPassword').value;
+  if (!email || !password) return ERP.toast('이메일과 비밀번호를 입력해 주세요.', 'error');
+  try { await ERP.signInWithPassword(email, password); window.location.reload(); }
   catch (error) { ERP.toast(error.message, 'error'); }
 }
 
@@ -54,7 +61,7 @@ function renderOrderPortal(root) {
     <aside class="sidebar">
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ORDER <small>KOREA PORTAL</small></span></a>
       <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 주문</button><button onclick="showOrderSection('history',this)">내 주문</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="drawings.html">도면 보관함</a></nav>
-      <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.signOut()">로그아웃</button></div>
+      <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
       <header class="topbar"><div><h1 id="orderTitle">새 주문 · 견적 요청</h1><p id="orderSubtitle">품목을 작성하고 DWG, PDF, STP 도면을 바로 올려 주세요.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면 보관함</a><a class="btn btn-soft" href="portal.html">메인 포털</a></div></header>
