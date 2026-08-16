@@ -92,7 +92,7 @@ function renderAdminShell(root, email) {
       <div class="sidebar-footer"><div>${ERP.escapeHtml(email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1 id="adminTitle">대시보드</h1><p id="adminSubtitle">구매·판매·도면·주문 현황을 한눈에 확인합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면관리</a><button class="btn btn-soft" onclick="refreshAdmin()">새로고침</button><a class="btn btn-accent" href="order.html">수주관리</a></div></header>
+      <header class="topbar"><div><h1 id="adminTitle">대시보드</h1><p id="adminSubtitle">세후 매입·매출과 도면·주문 현황을 한눈에 확인합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면관리</a><button class="btn btn-soft" onclick="refreshAdmin()">새로고침</button><a class="btn btn-accent" href="order.html">수주관리</a></div></header>
       <section id="adminContent"></section>
     </main>`;
 }
@@ -112,8 +112,8 @@ function renderAdminPage(page) {
   adminState.page = page;
   document.querySelectorAll('.nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.page === page));
   const meta = {
-    dashboard: ['대시보드', '구매·판매·도면·주문 현황을 한눈에 확인합니다.'],
-    ledger: ['통합 거래원장', '원본 장부의 구매·판매 기록과 도면 매칭을 조회합니다.'],
+    dashboard: ['대시보드', '세후 매입·매출과 도면·주문 현황을 한눈에 확인합니다.'],
+    ledger: ['통합 거래원장', '세전·세후 입력값을 모두 세후 금액으로 환산해 관리합니다.'],
     items: ['품목 · 도면', '제품과 가공분류, 최신 가격, 도면 매칭 상태를 관리합니다.'],
     orders: ['한국 주문', '한국에서 접수한 주문과 도면을 확인하고 견적·확정 상태를 관리합니다.'],
     invoices: ['인보이스', '주문 확정 시 자동 생성된 인보이스를 발행하고 출력합니다.']
@@ -125,18 +125,48 @@ function renderAdminPage(page) {
   ({ dashboard: renderDashboard, ledger: renderLedger, items: renderItems, orders: renderOrders, invoices: renderInvoices, notifications: renderNotifications, suppliers: renderSuppliers })[page]();
 }
 
+function transactionAmount(row, side) {
+  const included = row[`${side}_amount_inc`];
+  if (included !== null && included !== undefined && Number.isFinite(Number(included))) return Number(included);
+  const excluded = Number(row[`${side}_amount_ex`] || 0);
+  const taxRate = Number(row[`${side}_tax_rate`] ?? 0.13);
+  return Math.round(excluded * (1 + taxRate) * 100) / 100;
+}
+
+function transactionProfit(row) { return transactionAmount(row, 'sale') - transactionAmount(row, 'purchase'); }
+
+function transactionCell(row, side) {
+  if (row[`${side}_amount_inc`] === null && row[`${side}_amount_ex`] === null) return '-';
+  return `${ERP.money(transactionAmount(row, side),'CNY')}<br><small>${transactionTaxNote(row, side)}</small>`;
+}
+
+function transactionTaxNote(row, side) {
+  const basis = row[`${side}_price_basis`] === 'inclusive' ? '세후입력' : '세전입력';
+  const rate = Number(row[`${side}_tax_rate`] ?? 0.13) * 100;
+  return `${basis} · ${ERP.number(rate, 2)}%`;
+}
+
+function latestTaxIncludedUnit(item, side) {
+  const amountKey = `${side}_amount_inc`;
+  const quantityKey = `${side}_qty`;
+  const transaction = adminState.transactions.find(row => row.normalized_part_name === item.normalized_key && row[amountKey] !== null && Number(row[quantityKey]));
+  if (transaction) return Number(transaction[amountKey]) / Number(transaction[quantityKey]);
+  const fallback = Number(item[`latest_${side}_unit`] || 0);
+  return fallback ? fallback * 1.13 : 0;
+}
+
 function renderDashboard() {
   const tx = adminState.transactions;
-  const purchase = tx.reduce((s, x) => s + Number(x.purchase_amount_ex || 0), 0);
-  const sales = tx.reduce((s, x) => s + Number(x.sale_amount_ex || 0), 0);
-  const profit = tx.reduce((s, x) => s + Number(x.gross_profit_ex || 0), 0);
+  const purchase = tx.reduce((s, x) => s + transactionAmount(x, 'purchase'), 0);
+  const sales = tx.reduce((s, x) => s + transactionAmount(x, 'sale'), 0);
+  const profit = tx.reduce((s, x) => s + transactionProfit(x), 0);
   const matched = tx.filter(x => x.drawing_match && x.drawing_match !== '미매칭').length;
   const pendingOrders = adminState.orders.filter(x => !['completed','cancelled'].includes(x.status)).length;
   document.getElementById('adminContent').innerHTML = `
     <div class="grid-kpi">
-      ${kpi('총 매입 · 세전', ERP.money(purchase,'CNY'), '#dfeef5')}
-      ${kpi('총 매출 · 세전', ERP.money(sales,'CNY'), '#dff3ec')}
-      ${kpi('매출총이익', ERP.money(profit,'CNY'), '#fff0c9')}
+      ${kpi('총 매입 · 세후', ERP.money(purchase,'CNY'), '#dfeef5')}
+      ${kpi('총 매출 · 세후', ERP.money(sales,'CNY'), '#dff3ec')}
+      ${kpi('매출총이익 · 세후', ERP.money(profit,'CNY'), '#fff0c9')}
       ${kpi('도면 매칭률', tx.length ? `${(matched / tx.length * 100).toFixed(1)}%` : '0%', '#e6e8f6')}
     </div>
     <div class="section-grid">
@@ -156,7 +186,7 @@ function productSummary() {
 
 function renderLedger() {
   document.getElementById('adminContent').innerHTML = `
-    <div class="card card-pad"><div class="filters"><input id="ledgerSearch" placeholder="품목·공급처·주문번호 검색" oninput="filterLedger()"><select id="ledgerProduct" onchange="filterLedger()"><option value="">전체 제품</option>${['INE-200','INT-200','INB-200','INA-200','제품확인필요'].map(x=>`<option>${x}</option>`).join('')}</select><select id="ledgerProcess" onchange="filterLedger()"><option value="">전체 분류</option>${['MCT','CNC','GLASS','기어류','기타'].map(x=>`<option>${x}</option>`).join('')}</select><span class="badge" id="ledgerCount"></span></div><div id="ledgerTable"></div></div>`;
+    <div class="card card-pad"><div class="section-title"><div><h2>세후 거래원장</h2><p>입력 방식과 관계없이 매입·매출·이익은 세후 금액으로 집계됩니다.</p></div><button class="btn btn-accent" onclick="renderTransactionForm()">+ 새 거래 입력</button></div><div class="filters"><input id="ledgerSearch" placeholder="품목·공급처·주문번호 검색" oninput="filterLedger()"><select id="ledgerProduct" onchange="filterLedger()"><option value="">전체 제품</option>${['INE-200','INT-200','INB-200','INA-200','제품확인필요'].map(x=>`<option>${x}</option>`).join('')}</select><select id="ledgerProcess" onchange="filterLedger()"><option value="">전체 분류</option>${['MCT','CNC','GLASS','기어류','기타'].map(x=>`<option>${x}</option>`).join('')}</select><span class="badge" id="ledgerCount"></span></div><div id="ledgerTable"></div></div>`;
   filterLedger();
 }
 
@@ -171,7 +201,106 @@ function filterLedger() {
 
 function ledgerTable(rows) {
   if (!rows.length) return '<div class="empty">조건에 맞는 거래가 없습니다.</div>';
-  return `<div class="table-wrap"><table><thead><tr><th>일자</th><th>품목</th><th>제품</th><th>분류</th><th>공급처</th><th>매입</th><th>매출</th><th>이익</th><th>도면</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${ERP.date(x.transaction_date)}</td><td><strong>${ERP.escapeHtml(x.part_name)}</strong><br><small>${ERP.escapeHtml(x.material||'')}</small></td><td>${x.product}</td><td>${x.process_type}</td><td>${ERP.escapeHtml(x.supplier_name||'-')}</td><td>${ERP.money(x.purchase_amount_ex,'CNY')}</td><td>${ERP.money(x.sale_amount_ex,'CNY')}</td><td>${ERP.money(x.gross_profit_ex,'CNY')}</td><td><span class="badge ${x.drawing_match==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_match||'미매칭')}</span></td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>일자</th><th>품목</th><th>제품</th><th>분류</th><th>공급처</th><th>매입(세후)</th><th>매출(세후)</th><th>이익(세후)</th><th>도면</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${ERP.date(x.transaction_date)}</td><td><strong>${ERP.escapeHtml(x.part_name)}</strong><br><small>${ERP.escapeHtml(x.material||'')}</small></td><td>${x.product}</td><td>${x.process_type}</td><td>${ERP.escapeHtml(x.supplier_name||'-')}</td><td>${transactionCell(x,'purchase')}</td><td>${transactionCell(x,'sale')}</td><td>${ERP.money(transactionProfit(x),'CNY')}</td><td><span class="badge ${x.drawing_match==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_match||'미매칭')}</span></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderTransactionForm() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('adminContent').innerHTML = `
+    <form class="card form-card" onsubmit="saveTransaction(event)">
+      <div class="section-title"><div><h2>새 매입·매출 입력</h2><p>단가는 보통 세전으로 입력하며, 세후 단가를 받은 경우 입력 기준을 세후로 바꾸면 됩니다.</p></div><button class="btn btn-soft" type="button" onclick="renderLedger()">원장으로</button></div>
+      <section class="form-section"><h2>1. 거래 정보</h2><div class="form-grid three">
+        <div class="field"><label>거래일 *</label><input id="txDate" type="date" value="${today}" required></div>
+        <div class="field"><label>공급처</label><input id="txSupplier" placeholder="업체명"></div>
+        <div class="field"><label>주문번호</label><input id="txOrderNo"></div>
+        <div class="field"><label>품목명 *</label><input id="txPartName" list="txItemList" required></div>
+        <div class="field"><label>소재</label><input id="txMaterial"></div>
+        <div class="field"><label>제품</label><select id="txProduct">${['INE-200','INT-200','INB-200','INA-200','제품확인필요'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>가공·소재 분류</label><select id="txProcess">${['MCT','CNC','GLASS','기어류','기타'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+      </div></section>
+      <section class="form-section"><h2>2. 매입</h2><div class="form-grid three">
+        <div class="field"><label>매입 수량</label><input id="txPurchaseQty" type="number" step="0.0001"></div>
+        <div class="field"><label>매입 입력단가</label><input id="txPurchasePrice" type="number" min="0" step="0.0001"></div>
+        <div class="field"><label>입력 기준</label><select id="txPurchaseBasis"><option value="exclusive">세전 입력 (기본)</option><option value="inclusive">세후 입력</option></select></div>
+        <div class="field"><label>매입 세율(%)</label><input id="txPurchaseTax" type="number" min="0" max="100" step="0.01" value="13"></div>
+      </div></section>
+      <section class="form-section"><h2>3. 매출</h2><div class="form-grid three">
+        <div class="field"><label>판매 수량</label><input id="txSaleQty" type="number" step="0.0001"></div>
+        <div class="field"><label>판매 입력단가</label><input id="txSalePrice" type="number" min="0" step="0.0001" placeholder="비우면 매입 입력단가"></div>
+        <div class="field"><label>입력 기준</label><select id="txSaleBasis"><option value="exclusive">세전 입력 (기본)</option><option value="inclusive">세후 입력</option></select></div>
+        <div class="field"><label>매출 세율(%)</label><input id="txSaleTax" type="number" min="0" max="100" step="0.01" value="13"></div>
+      </div></section>
+      <div class="field"><label>비고</label><textarea id="txNote"></textarea></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:20px"><button id="txSaveButton" class="btn btn-accent" type="submit">세후 금액으로 저장</button></div>
+      <datalist id="txItemList">${adminState.items.map(x=>`<option value="${ERP.escapeHtml(x.item_name)}"></option>`).join('')}</datalist>
+    </form>`;
+}
+
+function normalizeTaxInput(unitPrice, quantity, basis, taxRatePercent) {
+  if (!Number(unitPrice) || !Number(quantity)) return null;
+  const factor = 1 + Number(taxRatePercent || 0) / 100;
+  const inputAmount = Number(unitPrice) * Number(quantity);
+  const amountEx = basis === 'inclusive' ? inputAmount / factor : inputAmount;
+  const amountInc = basis === 'inclusive' ? inputAmount : inputAmount * factor;
+  return {
+    unitEx: Math.round((amountEx / Number(quantity)) * 10000) / 10000,
+    amountEx: Math.round(amountEx * 100) / 100,
+    amountInc: Math.round(amountInc * 100) / 100
+  };
+}
+
+async function saveTransaction(event) {
+  event.preventDefault();
+  const button = document.getElementById('txSaveButton');
+  const purchaseInput = Number(document.getElementById('txPurchasePrice').value || 0);
+  const purchaseQty = Number(document.getElementById('txPurchaseQty').value || 0);
+  const saleQty = Number(document.getElementById('txSaleQty').value || 0);
+  const saleInput = Number(document.getElementById('txSalePrice').value || (saleQty ? purchaseInput : 0));
+  const purchaseBasis = document.getElementById('txPurchaseBasis').value;
+  const saleBasis = document.getElementById('txSaleBasis').value;
+  const purchaseTaxPercent = Number(document.getElementById('txPurchaseTax').value || 0);
+  const saleTaxPercent = Number(document.getElementById('txSaleTax').value || 0);
+  const purchase = normalizeTaxInput(purchaseInput, purchaseQty, purchaseBasis, purchaseTaxPercent);
+  const sale = normalizeTaxInput(saleInput, saleQty, saleBasis, saleTaxPercent);
+  if (!purchase && !sale) return ERP.toast('매입 또는 매출 수량과 단가를 입력해 주세요.', 'error');
+  const partName = document.getElementById('txPartName').value.trim();
+  const payload = {
+    transaction_code: `MANUAL-${Date.now()}-${crypto.randomUUID().slice(0,8)}`,
+    supplier_name: document.getElementById('txSupplier').value.trim() || null,
+    transaction_date: document.getElementById('txDate').value,
+    order_no: document.getElementById('txOrderNo').value.trim() || null,
+    part_name: partName,
+    normalized_part_name: partName.toLowerCase().replace(/\s+/g, ' ').trim(),
+    product: document.getElementById('txProduct').value,
+    process_type: document.getElementById('txProcess').value,
+    material: document.getElementById('txMaterial').value.trim() || null,
+    purchase_status: purchase ? '구매' : '견적',
+    purchase_unit_ex: purchase?.unitEx ?? null,
+    purchase_qty: purchase ? purchaseQty : null,
+    purchase_amount_ex: purchase?.amountEx ?? null,
+    purchase_amount_inc: purchase?.amountInc ?? null,
+    purchase_price_basis: purchaseBasis,
+    purchase_tax_rate: purchaseTaxPercent / 100,
+    sale_rule: sale ? (saleBasis === 'inclusive' ? '세후입력' : '세전입력') : null,
+    sale_unit_ex: sale?.unitEx ?? null,
+    sale_qty: sale ? saleQty : null,
+    sale_amount_ex: sale?.amountEx ?? null,
+    sale_amount_inc: sale?.amountInc ?? null,
+    sale_price_basis: saleBasis,
+    sale_tax_rate: saleTaxPercent / 100,
+    gross_profit_ex: (sale?.amountEx || 0) - (purchase?.amountEx || 0),
+    drawing_match: '미매칭',
+    note: document.getElementById('txNote').value.trim() || null
+  };
+  button.disabled = true;
+  try {
+    const { error } = await ERP.client.from('erp_v2_transactions').insert(payload);
+    if (error) throw error;
+    await loadAdminData();
+    renderLedger();
+    ERP.toast('세후 기준으로 거래를 저장했습니다.', 'success');
+  } catch (error) { ERP.toast(error.message, 'error'); }
+  finally { button.disabled = false; }
 }
 
 function renderItems() {
@@ -183,7 +312,7 @@ function renderItems() {
 function filterItemsV2() {
   const q = (document.getElementById('itemSearchV2')?.value || '').toLowerCase();
   const rows = adminState.items.filter(x => !q || `${x.item_code} ${x.item_name} ${x.normalized_key}`.toLowerCase().includes(q));
-  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가</th><th>최근 판매단가</th><th>도면</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><strong>${ERP.escapeHtml(x.item_name)}</strong></td><td>${x.product}</td><td>${x.process_type}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(x.latest_purchase_unit,'CNY')}</td><td>${ERP.money(x.latest_sale_unit,'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
+  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가(세후)</th><th>최근 판매단가(세후)</th><th>도면</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><strong>${ERP.escapeHtml(x.item_name)}</strong></td><td>${x.product}</td><td>${x.process_type}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'purchase'),'CNY')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'sale'),'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
 }
 
 async function openItemDrawings(itemId) {
@@ -321,6 +450,9 @@ function renderPurchaseOrderBuilder(selectedSupplierId = '') {
   adminState.poLines = 1;
   const options = adminState.suppliers.map(x => `<option value="${x.id}" ${Number(selectedSupplierId) === Number(x.id) ? 'selected' : ''}>${ERP.escapeHtml(x.display_name)}</option>`).join('');
   document.getElementById('adminContent').innerHTML = `<div class="card form-card"><div class="section-title"><div><h2>PURCHASE ORDER</h2><p>기존 업체별 주문서의 공통 양식을 적용합니다.</p></div><button class="btn btn-soft" onclick="renderSuppliers()">업체 목록</button></div><div class="form-grid three"><div class="field"><label>공급사</label><select id="poSupplier"><option value="">선택</option>${options}</select></div><div class="field"><label>발주번호</label><input id="poNumber" value="PO-${new Date().toISOString().slice(2,10).replaceAll('-','')}"></div><div class="field"><label>발주일</label><input id="poDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>가격 기준</label><select id="poPriceBasis"><option>含税 / 세금 포함</option><option>不含税 / 세금 별도</option></select></div><div class="field"><label>통화</label><select id="poCurrency"><option>CNY</option><option>USD</option><option>KRW</option></select></div></div><section class="form-section"><div class="section-title"><h2>품목</h2><button class="btn btn-soft" onclick="addPoLine()">+ 품목 추가</button></div><div id="poLines">${poLineHtml(0)}</div></section><div class="field"><label>비고</label><textarea id="poNotes" placeholder="납기, 포장, 검사 조건"></textarea></div><div style="display:flex;justify-content:flex-end;margin-top:20px"><button class="btn btn-accent" onclick="printSupplierPurchaseOrder()">발주서 보기 · PDF</button></div><datalist id="poItemList">${adminState.items.map(x => `<option value="${ERP.escapeHtml(x.item_name)}">${ERP.escapeHtml(x.material || '')}</option>`).join('')}</datalist></div>`;
+  document.getElementById('poPriceBasis').selectedIndex = 1;
+  document.getElementById('poPriceBasis').closest('.field').insertAdjacentHTML('afterend', '<div class="field"><label>부가세율(%)</label><input id="poTaxRate" type="number" min="0" max="100" step="0.01" value="13"></div>');
+  document.getElementById('poCurrency').closest('.field').insertAdjacentHTML('afterend', '<div class="field"><label>장부 관리 기준</label><input value="세후 금액으로 자동 환산" readonly></div>');
 }
 
 function poLineHtml(index) {
@@ -346,11 +478,28 @@ function printSupplierPurchaseOrder() {
   const currency = document.getElementById('poCurrency').value;
   const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
   const total = lines.reduce((sum, x) => sum + x.qty * x.price, 0);
+  const priceBasisField = document.getElementById('poPriceBasis');
+  const priceBasis = priceBasisField.selectedIndex === 1 ? 'exclusive' : 'inclusive';
+  const taxRatePercent = Number(document.getElementById('poTaxRate').value || 0);
+  const taxFactor = 1 + taxRatePercent / 100;
+  const subtotalEx = priceBasis === 'exclusive' ? total : total / taxFactor;
+  const totalInc = priceBasis === 'inclusive' ? total : total * taxFactor;
+  const taxAmount = totalInc - subtotalEx;
   const party = partyBlock => [partyBlock.legal_name || partyBlock.display_name, partyBlock.tax_id ? `税号：${partyBlock.tax_id}` : '', partyBlock.address ? `单位地址：${partyBlock.address}` : '', partyBlock.bank_name ? `开户银行：${partyBlock.bank_name}` : '', partyBlock.bank_account ? `银行账户：${partyBlock.bank_account}` : ''].filter(Boolean).map(ERP.escapeHtml).join('<br>');
   const popup = window.open('', '_blank');
   popup.addEventListener('load', () => {
     popup.document.documentElement.lang = 'zh-CN';
     popup.document.body.style.fontFamily = '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", Arial, sans-serif';
+    popup.document.querySelector('.meta span:last-child').textContent += ` · VAT ${ERP.number(taxRatePercent, 2)}%`;
+    popup.document.querySelector('thead th:nth-child(4)').textContent = priceBasis === 'exclusive' ? '税前单价 / Unit Price EX TAX' : '含税单价 / Unit Price INC TAX';
+    const totalRow = popup.document.querySelector('tr.total');
+    totalRow.cells[0].textContent = priceBasis === 'exclusive' ? `税前合计 / SUBTOTAL EX TAX (${currency})` : `含税合计 / TOTAL INC TAX (${currency})`;
+    totalRow.cells[5].textContent = ERP.number(total, 2);
+    if (priceBasis === 'exclusive') {
+      totalRow.insertAdjacentHTML('afterend', `<tr><td colspan="5">税额 / TAX (${ERP.number(taxRatePercent, 2)}%)</td><td class="num">${ERP.number(taxAmount, 2)}</td></tr><tr class="total"><td colspan="5">含税总额 / TOTAL INC TAX (${currency})</td><td class="num">${ERP.number(totalInc, 2)}</td></tr>`);
+    } else {
+      totalRow.insertAdjacentHTML('beforebegin', `<tr><td colspan="5">税前金额 / AMOUNT EX TAX (${currency})</td><td class="num">${ERP.number(subtotalEx, 2)}</td></tr><tr><td colspan="5">其中税额 / INCLUDED TAX (${ERP.number(taxRatePercent, 2)}%)</td><td class="num">${ERP.number(taxAmount, 2)}</td></tr>`);
+    }
   }, { once: true });
   popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${ERP.escapeHtml(document.getElementById('poNumber').value)}</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:24mm;color:#111}h1{text-align:center;letter-spacing:.08em}.party{display:grid;grid-template-columns:1fr 1fr;gap:24px;font-size:12px;line-height:1.65;margin:22px 0}.party div{border-top:1px solid #333;padding-top:8px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #222;padding:8px}th{background:#f1f3f5}.num{text-align:right}.total{font-weight:bold}.meta{display:flex;justify-content:space-between;margin:14px 0;font-size:12px}.note{margin-top:18px;font-size:12px;white-space:pre-wrap}.sign{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:60px;border-top:1px solid #222;padding-top:12px}.actions{position:fixed;right:20px;top:20px}@media print{.actions{display:none}body{margin:12mm}}</style></head><body><button class="actions" onclick="print()">PDF / 인쇄</button><h1>PURCHASE ORDER</h1><div class="party"><div><strong>买方 / BUYER</strong><br>${party(buyer)}</div><div><strong>卖方 / SELLER</strong><br>${party(supplier)}</div></div><div class="meta"><span>No. ${ERP.escapeHtml(document.getElementById('poNumber').value)}</span><span>Date ${ERP.escapeHtml(document.getElementById('poDate').value)}</span><span>${ERP.escapeHtml(document.getElementById('poPriceBasis').value)} · ${currency}</span></div><table><thead><tr><th>No.</th><th>配件名 / Part Name</th><th>材料 / Material</th><th>单价 / Unit Price</th><th>数量 / Qty</th><th>金额 / Amount</th></tr></thead><tbody>${lines.map(x => `<tr><td>${x.no}</td><td>${ERP.escapeHtml(x.name)}</td><td>${ERP.escapeHtml(x.material || '-')}</td><td class="num">${ERP.number(x.price,4)}</td><td class="num">${ERP.number(x.qty,2)}</td><td class="num">${ERP.number(x.price*x.qty,2)}</td></tr>`).join('')}<tr class="total"><td colspan="4">合计 / TOTAL (${currency})</td><td class="num">${ERP.number(totalQty,2)}</td><td class="num">${ERP.number(total,2)}</td></tr></tbody></table><div class="note"><strong>Remark</strong><br>${ERP.escapeHtml(document.getElementById('poNotes').value || '-')}</div><div class="sign"><div>${ERP.escapeHtml(buyer.legal_name || buyer.display_name || '')}<br><br>Seal and Signature</div><div>${ERP.escapeHtml(supplier.legal_name || supplier.display_name)}<br><br>Seal and Signature</div></div></body></html>`);
   popup.document.close();
