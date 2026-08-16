@@ -53,11 +53,11 @@ function renderOrderPortal(root) {
   root.innerHTML = `
     <aside class="sidebar">
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ORDER <small>KOREA PORTAL</small></span></a>
-      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 주문</button><button onclick="showOrderSection('history',this)">내 주문</button><button onclick="showOrderSection('invoice',this)">인보이스</button></nav>
+      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 주문</button><button onclick="showOrderSection('history',this)">내 주문</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="drawings.html">도면 보관함</a></nav>
       <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1 id="orderTitle">새 주문 · 견적 요청</h1><p id="orderSubtitle">품목을 작성하고 DWG, PDF, STP 도면을 바로 올려 주세요.</p></div><div class="top-actions"><a class="btn btn-soft" href="portal.html">메인 포털</a></div></header>
+      <header class="topbar"><div><h1 id="orderTitle">새 주문 · 견적 요청</h1><p id="orderSubtitle">품목을 작성하고 DWG, PDF, STP 도면을 바로 올려 주세요.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면 보관함</a><a class="btn btn-soft" href="portal.html">메인 포털</a></div></header>
       <section id="orderContent"></section>
     </main>`;
   renderNewOrder();

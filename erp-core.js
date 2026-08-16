@@ -70,6 +70,12 @@
     return Boolean(data);
   }
 
+  async function drawingRole() {
+    const { data, error } = await client.rpc('erp_v2_my_drawing_role');
+    if (error) throw error;
+    return data || 'none';
+  }
+
   async function signedDrawingUrl(path, expires = 600) {
     const { data, error } = await client.storage.from(config.drawingBucket).createSignedUrl(path, expires);
     if (error) throw error;
@@ -82,5 +88,20 @@
     return parts.join('.').normalize('NFKD').replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').slice(0, 90) + ext;
   }
 
-  window.ERP = { client, config, escapeHtml, money, number, date, statusLabel, toast, session, signIn, signOut, isAdmin, signedDrawingUrl, safeFileName };
+  function drawingFileKind(name) {
+    const ext = String(name || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return 'PDF';
+    if (ext === 'dwg') return 'DWG';
+    if (ext === 'stp' || ext === 'step') return 'STP';
+    if (ext === 'png') return 'PNG';
+    if (ext === 'jpg' || ext === 'jpeg') return 'JPG';
+    return 'OTHER';
+  }
+
+  async function sha256(file) {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
+  }
+
+  window.ERP = { client, config, escapeHtml, money, number, date, statusLabel, toast, session, signIn, signOut, isAdmin, drawingRole, signedDrawingUrl, safeFileName, drawingFileKind, sha256 };
 })();
