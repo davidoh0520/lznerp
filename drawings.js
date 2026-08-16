@@ -13,8 +13,8 @@ async function initDrawingLibrary() {
   try {
     drawingState.session = await ERP.session();
     if (!drawingState.session) return renderDrawingLogin(root);
-    drawingState.role = await ERP.drawingRole();
-    if (drawingState.role === 'none') return renderDrawingDenied(root);
+    if (!(await ERP.isAdmin())) return renderDrawingDenied(root);
+    drawingState.role = 'owner';
     await loadDrawingLibrary();
     renderDrawingShell(root);
     renderDrawingTable();
@@ -31,13 +31,13 @@ function renderDrawingLogin(root) {
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN DRAWINGS <small>VERSION CONTROL</small></span></a>
       <div class="access-card" style="margin-top:44px">
         <h2>도면 보관함 로그인</h2>
-        <p>관리자, 한국 IINEER, 등록된 공급사가 이메일 아이디와 비밀번호로 로그인합니다.</p>
+        <p>대표 전용 계정으로 최신 도면과 모든 이전 버전을 관리합니다.</p>
         <form class="auth-login-grid" onsubmit="loginDrawing(event)">
           <input id="drawingEmail" type="email" autocomplete="username" value="${ERP.escapeHtml(ERP.rememberedEmail())}" placeholder="이메일 아이디" required>
           <input id="drawingPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required>
           <button class="btn btn-primary" type="submit">로그인</button>
         </form>
-        <div class="auth-note">등록된 계정만 로그인할 수 있으며 공급사는 자기 업체 담당 품목만 열 수 있습니다.</div>
+        <div class="auth-note">등록된 관리자 한 명만 도면을 열고 업로드하거나 교체할 수 있습니다.</div>
       </div>
     </div>`;
 }
@@ -57,7 +57,7 @@ async function loginDrawing(event) {
 
 function renderDrawingDenied(root) {
   root.className = 'landing';
-  root.innerHTML = `<div class="landing-shell" style="max-width:680px;padding-top:9vh"><div class="access-card"><h2>도면 권한이 아직 없습니다</h2><p>${ERP.escapeHtml(drawingState.session.user.email)} 계정은 도면 보관함에 등록되지 않았습니다. 관리자에게 한국 IINEER 또는 공급사 권한 등록을 요청해 주세요.</p><div class="top-actions"><a class="btn btn-soft" href="order.html">주문 포털</a><button class="btn btn-primary" onclick="ERP.signOut()">로그아웃</button></div></div></div>`;
+  root.innerHTML = `<div class="landing-shell" style="max-width:680px;padding-top:9vh"><div class="access-card"><h2>대표 전용 도면관리입니다</h2><p>${ERP.escapeHtml(drawingState.session.user.email)} 계정으로는 도면에 접근할 수 없습니다.</p><div class="top-actions"><button class="btn btn-primary" onclick="ERP.signOut()">다른 계정으로 로그인</button><a class="btn btn-soft" href="portal.html">메인으로</a></div></div></div>`;
 }
 
 async function loadDrawingLibrary() {
@@ -72,11 +72,11 @@ async function loadDrawingLibrary() {
 }
 
 function roleLabel() {
-  return ({ owner: '관리자', iineer: '한국 IINEER', supplier: '공급사' })[drawingState.role] || drawingState.role;
+  return drawingState.role === 'owner' ? '대표 관리자' : '접근 불가';
 }
 
 function canEditDrawings() {
-  return drawingState.role === 'owner' || drawingState.role === 'iineer';
+  return drawingState.role === 'owner';
 }
 
 function renderDrawingShell(root) {
@@ -84,7 +84,7 @@ function renderDrawingShell(root) {
   root.innerHTML = `
     <aside class="sidebar">
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN DRAWINGS <small>CONTROLLED FILES</small></span></a>
-      <nav class="nav"><button class="active">도면 보관함</button><a href="order.html">주문 포털</a>${drawingState.role === 'owner' ? '<a href="admin.html">관리자 ERP</a>' : ''}</nav>
+      <nav class="nav"><button class="active">도면관리</button><a href="order.html">수주관리</a><a href="admin.html?page=suppliers">발주관리</a><a href="admin.html">전체 대시보드</a></nav>
       <div class="sidebar-footer"><div><span class="badge good">${roleLabel()}</span><br>${ERP.escapeHtml(drawingState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">

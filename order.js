@@ -7,6 +7,7 @@ async function initOrderPortal() {
   try {
     orderState.session = await ERP.session();
     if (!orderState.session) return renderOrderLogin(root);
+    if (!(await ERP.isAdmin())) return renderOrderDenied(root, orderState.session.user.email);
     await loadMyOrders();
     renderOrderPortal(root);
     if (!ERP.passwordLoginReady(orderState.session)) setTimeout(() => ERP.openPasswordSetup(), 0);
@@ -19,20 +20,25 @@ function renderOrderLogin(root) {
   root.className = 'landing';
   root.innerHTML = `
     <div class="landing-shell" style="max-width:660px;padding-top:8vh">
-      <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ORDER <small>KOREA CUSTOMER PORTAL</small></span></a>
+      <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN SALES <small>OWNER ACCESS</small></span></a>
       <div class="access-card" style="margin-top:42px">
-        <div class="eyebrow" style="color:#a7730a">Secure drawing upload</div>
-        <h2 style="margin-top:10px">한국 주문 로그인</h2>
-        <p>이메일 아이디와 비밀번호로 주문 작성, 도면 업로드, 진행 상태와 인보이스 확인이 가능합니다.</p>
+        <div class="eyebrow" style="color:#a7730a">OWNER ONLY</div>
+        <h2 style="margin-top:10px">수주관리 로그인</h2>
+        <p>대표 전용 계정으로 고객 주문 입력, 진행 상태와 인보이스를 관리합니다.</p>
         <form class="auth-login-grid" onsubmit="loginOrder(event)">
           <input id="orderEmail" type="email" autocomplete="username" value="${ERP.escapeHtml(ERP.rememberedEmail())}" placeholder="이메일 아이디" required>
           <input id="orderPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required>
           <button class="btn btn-accent" type="submit">로그인</button>
         </form>
-        <div class="auth-note">등록된 계정만 로그인할 수 있습니다. 업로드한 도면은 본인과 LZN 관리자만 볼 수 있습니다.</div>
+        <div class="auth-note">등록된 관리자 한 명만 이 화면과 주문 데이터에 접근할 수 있습니다.</div>
         <a href="portal.html" style="display:inline-block;margin-top:22px;color:#607489;font-size:13px">← 메인 포털</a>
       </div>
     </div>`;
+}
+
+function renderOrderDenied(root, email) {
+  root.className = 'landing';
+  root.innerHTML = `<div class="landing-shell" style="max-width:650px;padding-top:10vh"><div class="access-card"><h2>대표 전용 화면입니다</h2><p>${ERP.escapeHtml(email)} 계정으로는 수주 데이터에 접근할 수 없습니다.</p><div class="top-actions"><button class="btn btn-primary" onclick="ERP.signOut()">다른 계정으로 로그인</button><a class="btn btn-soft" href="portal.html">메인으로</a></div></div></div>`;
 }
 
 async function loginOrder(event) {
@@ -59,8 +65,8 @@ function renderOrderPortal(root) {
   root.className = 'app-shell';
   root.innerHTML = `
     <aside class="sidebar">
-      <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ORDER <small>KOREA PORTAL</small></span></a>
-      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 주문</button><button onclick="showOrderSection('history',this)">내 주문</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="drawings.html">도면 보관함</a></nav>
+      <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN SALES <small>ORDER MANAGEMENT</small></span></a>
+      <nav class="nav"><button class="active" onclick="showOrderSection('new',this)">새 수주 입력</button><button onclick="showOrderSection('history',this)">수주 내역</button><button onclick="showOrderSection('invoice',this)">인보이스</button><a href="admin.html?page=suppliers">발주관리</a><a href="drawings.html">도면관리</a></nav>
       <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
