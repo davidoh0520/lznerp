@@ -1,4 +1,4 @@
-const orderState = { session: null, orders: [], invoices: [], lines: 1 };
+const orderState = { session: null, orders: [], invoices: [], customer: null, lines: 1 };
 
 document.addEventListener('DOMContentLoaded', initOrderPortal);
 
@@ -8,7 +8,7 @@ async function initOrderPortal() {
     orderState.session = await ERP.session();
     if (!orderState.session) return renderOrderLogin(root);
     if (!(await ERP.isAdmin())) return renderOrderDenied(root, orderState.session.user.email);
-    await loadMyOrders();
+    await Promise.all([loadMyOrders(), loadKoreanCustomer()]);
     renderOrderPortal(root);
     if (!ERP.passwordLoginReady(orderState.session)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
@@ -61,6 +61,16 @@ async function loadMyOrders() {
   orderState.invoices = invoices.data || [];
 }
 
+async function loadKoreanCustomer() {
+  const { data, error } = await ERP.client
+    .from('erp_v2_customers')
+    .select('customer_key,display_name,address,phone,fax')
+    .eq('customer_key', 'iineer')
+    .single();
+  if (error) throw error;
+  orderState.customer = data;
+}
+
 function renderOrderPortal(root) {
   root.className = 'app-shell';
   root.innerHTML = `
@@ -70,7 +80,7 @@ function renderOrderPortal(root) {
       <div class="sidebar-footer"><div>${ERP.escapeHtml(orderState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1 id="orderTitle">새 주문 · 견적 요청</h1><p id="orderSubtitle">품목을 작성하고 DWG, PDF, STP 도면을 바로 올려 주세요.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면 보관함</a><a class="btn btn-soft" href="portal.html">메인 포털</a></div></header>
+      <header class="topbar"><div><h1 id="orderTitle">새 수주 입력</h1><p id="orderSubtitle">한국 거래처 iiNEER 주문을 입력하고 관련 도면을 연결합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면관리</a><a class="btn btn-soft" href="portal.html">메인 포털</a></div></header>
       <section id="orderContent"></section>
     </main>`;
   renderNewOrder();
@@ -79,8 +89,8 @@ function renderOrderPortal(root) {
 function showOrderSection(section, button) {
   document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
   button?.classList.add('active');
-  if (section === 'new') { setOrderTitle('새 주문 · 견적 요청','품목을 작성하고 DWG, PDF, STP 도면을 바로 올려 주세요.'); renderNewOrder(); }
-  if (section === 'history') { setOrderTitle('내 주문','접수된 주문의 견적·제작·출고 상태를 확인합니다.'); renderMyOrders(); }
+  if (section === 'new') { setOrderTitle('새 수주 입력','한국 거래처 iiNEER 주문을 입력하고 관련 도면을 연결합니다.'); renderNewOrder(); }
+  if (section === 'history') { setOrderTitle('수주 내역','iiNEER 주문의 견적·제작·출고 상태를 확인합니다.'); renderMyOrders(); }
   if (section === 'invoice') { setOrderTitle('인보이스','확정 주문에서 생성된 인보이스를 확인하고 PDF로 저장합니다.'); renderMyInvoices(); }
 }
 
@@ -88,14 +98,15 @@ function setOrderTitle(title, subtitle) { document.getElementById('orderTitle').
 
 function renderNewOrder() {
   orderState.lines = 1;
+  const customer = orderState.customer;
   document.getElementById('orderContent').innerHTML = `
     <form id="orderForm" class="card form-card" onsubmit="submitOrder(event)">
-      <section class="form-section"><h2>1. 회사와 배송 정보</h2><p>견적서와 인보이스에 표시될 정보를 입력해 주세요.</p><div class="form-grid">
-        <div class="field"><label>회사명 *</label><input id="companyName" required placeholder="ABC Co., Ltd."></div>
+      <section class="form-section"><h2>1. 한국 거래처와 담당자</h2><p>한국 거래처는 iiNEER Co., Ltd. 한 곳으로 고정되어 있습니다. 담당자 정보만 입력해 주세요.</p><div class="form-grid">
+        <div class="field"><label>회사명</label><input id="companyName" required readonly value="${ERP.escapeHtml(customer.display_name)}"></div>
         <div class="field"><label>담당자 *</label><input id="contactName" required></div>
-        <div class="field"><label>이메일 *</label><input id="contactEmail" type="email" required value="${ERP.escapeHtml(orderState.session.user.email)}"></div>
-        <div class="field"><label>전화번호</label><input id="contactPhone" placeholder="+82-10-0000-0000"></div>
-        <div class="field full"><label>배송 주소</label><input id="shippingAddress" placeholder="대한민국 ..."></div>
+        <div class="field"><label>담당자 이메일 *</label><input id="contactEmail" type="email" required placeholder="iiNEER 담당자 이메일"></div>
+        <div class="field"><label>전화 / 팩스</label><input id="contactPhone" readonly value="${ERP.escapeHtml(`${customer.phone || '-'} · FAX ${customer.fax || '-'}`)}"></div>
+        <div class="field full"><label>배송 주소</label><input id="shippingAddress" readonly value="${ERP.escapeHtml(customer.address || '')}"></div>
         <div class="field"><label>고객 PO 번호</label><input id="customerPo" placeholder="선택 입력"></div>
         <div class="field"><label>거래 통화</label><select id="orderCurrency"><option>USD</option><option>KRW</option><option>CNY</option></select></div>
       </div></section>
@@ -181,5 +192,7 @@ async function printCustomerInvoice(id) {
     : 'Payment instructions are supplied securely by LZN.';
   const popup = window.open('', '_blank');
   popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${invoice.invoice_number}</title><style>body{font-family:Arial,sans-serif;color:#172235;margin:42px}.head{display:flex;justify-content:space-between;border-bottom:3px solid #123b59;padding-bottom:20px}.meta{text-align:right}table{width:100%;border-collapse:collapse;margin-top:28px}th,td{border-bottom:1px solid #ccd6df;padding:11px;text-align:left}th{background:#eef3f6}.num{text-align:right}.totals{width:340px;margin:24px 0 0 auto}.bank{margin-top:35px;border:1px solid #ccd6df;padding:18px;background:#f7f9fb;font-size:12px;line-height:1.65}.actions{position:fixed;right:24px;top:20px}@media print{.actions{display:none}body{margin:18mm}}</style></head><body><button class="actions" onclick="print()">PDF / 인쇄</button><div class="head"><div><h1>COMMERCIAL INVOICE</h1><strong>${ERP.escapeHtml(c.name)}</strong>${sellerAddress}</div><div class="meta"><h2>${invoice.invoice_number}</h2><div>Issue: ${invoice.issue_date}</div><div>Due: ${invoice.due_date||'-'}</div></div></div><h3>Bill To</h3><div><strong>${ERP.escapeHtml(invoice.buyer_name||'')}</strong><br>${ERP.escapeHtml(invoice.buyer_address||'')}<br>${ERP.escapeHtml(invoice.buyer_email||'')}</div><table><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>${(lines||[]).map((x,n)=>`<tr><td>${n+1}</td><td>${ERP.escapeHtml(x.description)}</td><td>${ERP.number(x.quantity,4)}</td><td>${x.unit}</td><td class="num">${ERP.money(x.unit_price,invoice.currency)}</td><td class="num">${ERP.money(x.amount,invoice.currency)}</td></tr>`).join('')}</tbody></table><table class="totals"><tr><td>Subtotal</td><td class="num">${ERP.money(invoice.subtotal,invoice.currency)}</td></tr><tr><td>Freight</td><td class="num">${ERP.money(invoice.freight,invoice.currency)}</td></tr><tr><th>Total</th><th class="num">${ERP.money(invoice.total,invoice.currency)}</th></tr></table><div class="bank"><strong>Payment Information</strong><br>${bankInfo}</div></body></html>`);
+  popup.document.documentElement.lang = 'en';
+  popup.document.body.style.fontFamily = 'Arial, "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", sans-serif';
   popup.document.close();
 }
