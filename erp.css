@@ -56,7 +56,19 @@ a { color: inherit; text-decoration: none; }
 .auth-box { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .auth-row { display: flex; gap: 8px; }
 .auth-row input { flex: 1; min-width: 0; width: auto; }
+.auth-login-grid { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) auto; gap: 8px; }
+.auth-login-grid input { min-width: 0; width: 100%; }
 .auth-note { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 9px; }
+
+.erp-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(7,25,42,.72); backdrop-filter: blur(5px); }
+.erp-modal { position: relative; width: min(460px,100%); padding: 30px; border-radius: 22px; background: #fff; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
+.erp-modal h2 { margin: 8px 0; font-size: 27px; }
+.erp-modal > p { color: var(--muted); line-height: 1.65; }
+.erp-modal form { display: grid; gap: 14px; margin-top: 22px; }
+.erp-modal label { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 700; }
+.erp-modal input { width: 100%; }
+.erp-modal-close { position: absolute; top: 14px; right: 16px; border: 0; background: transparent; color: var(--muted); font-size: 27px; cursor: pointer; }
+.form-error { border-radius: 9px; padding: 10px 12px; background: #fff0ef; color: #a52f28; font-size: 12px; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
 .sidebar { background: var(--navy); color: white; padding: 24px 17px; min-height: 100vh; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
@@ -174,4 +186,6 @@ textarea { min-height: 95px; resize: vertical; }
   .line-item input:first-child { grid-column: 1 / -1; }
   .auth-row { flex-direction: column; }
   .auth-row input, .auth-row button { width: 100%; }
+  .auth-login-grid { grid-template-columns: 1fr; }
+  .auth-login-grid button { width: 100%; }
 }

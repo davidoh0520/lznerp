@@ -11,6 +11,7 @@ async function initAdmin() {
     await loadAdminData();
     renderAdminShell(root, activeSession.user.email);
     renderAdminPage('dashboard');
+    if (!ERP.passwordLoginReady(activeSession)) setTimeout(() => ERP.openPasswordSetup(), 0);
   } catch (error) {
     root.innerHTML = `<div class="empty"><h2>데이터 연결 오류</h2><p>${ERP.escapeHtml(error.message)}</p><a class="btn btn-soft" href="portal.html">포털로 돌아가기</a></div>`;
   }
@@ -23,17 +24,23 @@ function renderAdminLogin(root) {
       <a class="brand" href="portal.html"><span class="brand-mark">LZ</span><span>LZN ERP <small>ADMIN ACCESS</small></span></a>
       <div class="access-card" style="margin-top:45px">
         <h2>관리자 로그인</h2>
-        <p>등록된 관리자 이메일로 일회용 로그인 링크를 받습니다.</p>
-        <div class="auth-row"><input id="adminEmail" type="email" placeholder="name@company.com"><button class="btn btn-primary" onclick="sendAdminLink()">로그인 링크</button></div>
-        <div class="auth-note">링크는 같은 브라우저에서 열어 주세요. 관리자 계정이 아니면 내부 데이터에 접근할 수 없습니다.</div>
+        <p>이메일을 아이디로 사용해 로그인합니다.</p>
+        <form class="auth-login-grid" onsubmit="loginAdmin(event)">
+          <input id="adminEmail" type="email" autocomplete="username" value="${ERP.escapeHtml(ERP.rememberedEmail())}" placeholder="이메일 아이디" required>
+          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+          <button class="btn btn-primary" type="submit">로그인</button>
+        </form>
+        <div class="auth-note">비밀번호를 설정한 계정만 로그인할 수 있습니다. 관리자 계정이 아니면 내부 데이터에 접근할 수 없습니다.</div>
       </div>
     </div>`;
 }
 
-async function sendAdminLink() {
+async function loginAdmin(event) {
+  event.preventDefault();
   const email = document.getElementById('adminEmail').value.trim();
-  if (!email) return ERP.toast('이메일을 입력해 주세요.', 'error');
-  try { await ERP.signIn(email, 'admin.html'); ERP.toast('이메일로 로그인 링크를 보냈습니다.', 'success'); }
+  const password = document.getElementById('adminPassword').value;
+  if (!email || !password) return ERP.toast('이메일과 비밀번호를 입력해 주세요.', 'error');
+  try { await ERP.signInWithPassword(email, password); window.location.reload(); }
   catch (error) { ERP.toast(error.message, 'error'); }
 }
 
@@ -82,7 +89,7 @@ function renderAdminShell(root, email) {
         <button data-page="suppliers" onclick="renderAdminPage('suppliers')">업체 · 발주서</button>
         <a href="drawings.html">도면 보관함</a>
       </nav>
-      <div class="sidebar-footer"><div>${ERP.escapeHtml(email)}</div><button onclick="ERP.signOut()">로그아웃</button></div>
+      <div class="sidebar-footer"><div>${ERP.escapeHtml(email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
       <header class="topbar"><div><h1 id="adminTitle">대시보드</h1><p id="adminSubtitle">구매·판매·도면·주문 현황을 한눈에 확인합니다.</p></div><div class="top-actions"><a class="btn btn-soft" href="drawings.html">도면 보관함</a><button class="btn btn-soft" onclick="refreshAdmin()">새로고침</button><a class="btn btn-accent" href="order.html">주문 포털 보기</a></div></header>
