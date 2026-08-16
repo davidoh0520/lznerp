@@ -7,6 +7,7 @@ GitHub Pages + Supabase 기반의 부품 구매·판매·도면·주문·인보�
 - `portal.html`: 메인 진입 화면
 - `admin.html`: 관리자 대시보드, 거래원장, 품목, 한국 주문, 인보이스
 - `order.html`: 한국 고객용 주문·도면 업로드·진행 조회
+- `drawings.html`: 관리자·한국 IINEER·공급사용 도면 보관함과 버전 이력
 - 기존 ERP 초안 파일은 호환을 위해 저장소에 유지합니다.
 
 ## Supabase
@@ -15,10 +16,13 @@ GitHub Pages + Supabase 기반의 부품 구매·판매·도면·주문·인보�
 
 접근 권한:
 
-- 내부 거래·품목: `admin_users`에 등록된 관리자만 접근
+- 내부 거래원장: `admin_users`에 등록된 관리자만 접근
+- 도면: 관리자는 전체 관리, 한국 IINEER는 열람·업로드·교체, 공급사는 담당 품목만 열람
+- 도면 교체: 기존 파일을 삭제하지 않고 새 버전으로 보존
 - 한국 주문: 로그인 사용자는 자기 주문만 접근
 - 주문 도면: 업로더와 관리자만 서명된 임시 링크로 접근
 - 인보이스: 해당 주문자와 관리자만 접근
+- 관리자 알림: IINEER의 도면 변경과 사용자 오더 접수·수정을 기록
 
 ## 기존 엑셀 데이터 이관
 
@@ -28,4 +32,4 @@ GitHub Pages + Supabase 기반의 부품 구매·판매·도면·주문·인보�
 
 ## 배포
 
-`main` 브랜치에 반영하면 `.github/workflows/pages.yml`이 GitHub Pages로 정적 사이트를 배포합니다. Supabase Auth의 Site URL과 Redirect URL에는 실제 GitHub Pages 주소의 `admin.html`, `order.html`을 등록해야 합니다.
+`main` 브랜치에 반영하면 GitHub Pages가 정적 사이트를 배포합니다. 도면 로그인은 허용된 `portal.html`을 거쳐 `drawings.html`로 이동하므로 별도의 리디렉션 URL 추가가 필요하지 않습니다.
