@@ -62,7 +62,7 @@ function renderDrawingDenied(root) {
 
 async function loadDrawingLibrary() {
   const [items, drawings] = await Promise.all([
-    ERP.client.from('erp_v2_items').select('id,item_code,item_name,normalized_key,product,process_type,material,drawing_status,drawing_formats,drawing_path').order('item_name'),
+    ERP.client.from('erp_v2_items').select('id,item_code,item_name,normalized_key,product,process_type,material,unit,remark,drawing_status,drawing_formats,drawing_path').order('item_name'),
     ERP.client.from('erp_v2_drawings').select('id,catalog_item_id,file_name,storage_path,mime_type,file_size,file_kind,version_no,is_current,replaces_drawing_id,source_modified_at,change_note,checksum_sha256,created_at').not('catalog_item_id', 'is', null).order('created_at', { ascending: false })
   ]);
   if (items.error) throw items.error;
@@ -127,14 +127,107 @@ function renderDrawingTable() {
     && (!process || item.process_type === process)
   );
   document.getElementById('drawingCount').textContent = `${rows.length}개 품목`;
-  document.getElementById('drawingTable').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>품목</th><th>제품</th><th>가공·소재</th><th>현재 도면</th><th>버전</th>${canEditDrawings() ? '<th>새 버전</th>' : ''}</tr></thead><tbody>${rows.map(drawingItemRow).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 품목이 없습니다.</div>';
+  document.getElementById('drawingTable').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>품목</th><th>제품</th><th>가공·소재</th><th>현재 도면</th><th>버전</th>${canEditDrawings() ? '<th>관리</th>' : ''}</tr></thead><tbody>${rows.map(drawingItemRow).join('')}</tbody></table></div>` : '<div class="empty">조건에 맞는 품목이 없습니다.</div>';
 }
 
 function drawingItemRow(item) {
   const all = drawingsForItem(item.id);
   const current = all.filter(x => x.is_current).sort((a, b) => String(a.file_kind).localeCompare(String(b.file_kind)));
   const formats = current.length ? current.map(file => `<button class="format-chip ${file.file_kind === 'PDF' ? 'preview' : ''}" onclick="openDrawing('${file.id}')">${ERP.escapeHtml(file.file_kind || 'FILE')} · v${file.version_no}</button>`).join('') : '<span class="badge bad">도면 없음</span>';
-  return `<tr><td><strong>${ERP.escapeHtml(item.item_name)}</strong><br><small>${ERP.escapeHtml(item.item_code)}</small></td><td>${ERP.escapeHtml(item.product)}</td><td>${ERP.escapeHtml(item.process_type)}<br><small>${ERP.escapeHtml(item.material || '-')}</small></td><td><div class="format-list">${formats}</div></td><td>${all.length ? `<button class="btn btn-small btn-soft" onclick="showDrawingHistory(${item.id})">이력 ${all.length}</button>` : '-'}</td>${canEditDrawings() ? `<td><label class="btn btn-small btn-primary file-button">업로드<input type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg" onchange="uploadItemDrawings(${item.id},this.files)"></label></td>` : ''}</tr>`;
+  return `<tr><td><strong>${ERP.escapeHtml(item.item_name)}</strong><br><small>${ERP.escapeHtml(item.item_code)}</small></td><td>${ERP.escapeHtml(item.product)}</td><td>${ERP.escapeHtml(item.process_type)}<br><small>${ERP.escapeHtml(item.material || '-')}</small></td><td><div class="format-list">${formats}</div></td><td>${all.length ? `<button class="btn btn-small btn-soft" onclick="showDrawingHistory(${item.id})">이력 ${all.length}</button>` : '-'}</td>${canEditDrawings() ? `<td><div class="row-actions"><button class="btn btn-small btn-soft" type="button" onclick="openDrawingItemEditor(${item.id})">품목정보 수정</button><label class="btn btn-small btn-primary file-button">도면 업로드<input type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg" onchange="uploadItemDrawings(${item.id},this.files)"></label></div></td>` : ''}</tr>`;
+}
+
+function drawingSelectOptions(values, current) {
+  return values.map(value => `<option value="${ERP.escapeHtml(value)}" ${value === current ? 'selected' : ''}>${ERP.escapeHtml(value)}</option>`).join('');
+}
+
+function openDrawingItemEditor(itemId) {
+  const item = drawingState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
+  closeDrawingItemEditor();
+  const modal = document.createElement('div');
+  modal.id = 'drawingItemEditorModal';
+  modal.className = 'erp-modal-backdrop';
+  modal.onclick = event => { if (event.target === modal) closeDrawingItemEditor(); };
+  modal.innerHTML = `<section class="erp-modal erp-modal-editor" role="dialog" aria-modal="true" aria-labelledby="drawingItemEditorTitle">
+    <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeDrawingItemEditor()">×</button>
+    <h2 id="drawingItemEditorTitle">품목정보 수정</h2>
+    <p>${ERP.escapeHtml(item.item_code)} · 도면과 연결된 고유 코드는 유지됩니다.</p>
+    <form onsubmit="saveDrawingItemEdit(event,${item.id})">
+      <div class="form-grid">
+        <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(item.item_name)}" required></div>
+        <div class="field"><label>제품</label><select id="drawingEditItemProduct">${drawingSelectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], item.product)}</select></div>
+        <div class="field"><label>가공 분류</label><select id="drawingEditItemProcess">${drawingSelectOptions(['MCT','CNC','GLASS','기어류','기타'], item.process_type)}</select></div>
+        <div class="field"><label>소재</label><input id="drawingEditItemMaterial" value="${ERP.escapeHtml(item.material || '')}" placeholder="예: SUS304, AL6061, GLASS"></div>
+        <div class="field"><label>단위</label><input id="drawingEditItemUnit" value="${ERP.escapeHtml(item.unit || 'EA')}" required></div>
+        <div class="field full"><label>비고</label><textarea id="drawingEditItemRemark">${ERP.escapeHtml(item.remark || '')}</textarea></div>
+      </div>
+      <p class="auth-note">품목명·제품·가공분류·소재를 바꾸면 이 품목에 연결된 과거 매입·매출 기록도 같은 내용으로 정리됩니다.</p>
+      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="closeDrawingItemEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
+    </form>
+  </section>`;
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  window.drawingItemEditorEscapeHandler = event => { if (event.key === 'Escape') closeDrawingItemEditor(); };
+  document.addEventListener('keydown', window.drawingItemEditorEscapeHandler);
+  setTimeout(() => document.getElementById('drawingEditItemName')?.focus(), 0);
+}
+
+function closeDrawingItemEditor() {
+  document.getElementById('drawingItemEditorModal')?.remove();
+  document.body.classList.remove('modal-open');
+  if (window.drawingItemEditorEscapeHandler) {
+    document.removeEventListener('keydown', window.drawingItemEditorEscapeHandler);
+    window.drawingItemEditorEscapeHandler = null;
+  }
+}
+
+async function saveDrawingItemEdit(event, itemId) {
+  event.preventDefault();
+  const button = event.submitter;
+  const item = drawingState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
+  const payload = {
+    item_name: document.getElementById('drawingEditItemName').value.trim(),
+    product: document.getElementById('drawingEditItemProduct').value,
+    process_type: document.getElementById('drawingEditItemProcess').value,
+    material: document.getElementById('drawingEditItemMaterial').value.trim() || null,
+    unit: document.getElementById('drawingEditItemUnit').value.trim() || 'EA',
+    remark: document.getElementById('drawingEditItemRemark').value.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  if (!payload.item_name) return ERP.toast('품목명을 입력해 주세요.', 'error');
+  button.disabled = true;
+  try {
+    const itemResult = await ERP.client.from('erp_v2_items').update(payload).eq('id', item.id).select('id').single();
+    if (itemResult.error) throw itemResult.error;
+    const historyResult = await ERP.client.from('erp_v2_transactions').update({
+      part_name: payload.item_name,
+      product: payload.product,
+      process_type: payload.process_type,
+      material: payload.material
+    }).eq('normalized_part_name', item.normalized_key).select('id');
+    if (historyResult.error) {
+      await ERP.client.from('erp_v2_items').update({
+        item_name: item.item_name,
+        product: item.product,
+        process_type: item.process_type,
+        material: item.material,
+        unit: item.unit,
+        remark: item.remark,
+        updated_at: new Date().toISOString()
+      }).eq('id', item.id);
+      throw historyResult.error;
+    }
+    closeDrawingItemEditor();
+    await loadDrawingLibrary();
+    renderDrawingTable();
+    ERP.toast(`품목정보와 연결 거래 ${historyResult.data?.length || 0}건을 수정했습니다.`, 'success');
+  } catch (error) {
+    ERP.toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function openDrawing(drawingId) {
