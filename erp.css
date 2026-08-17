@@ -128,6 +128,24 @@ a { color: inherit; text-decoration: none; }
 .erp-modal label { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 700; }
 .erp-modal input { width: 100%; }
 .erp-modal-close { position: absolute; top: 14px; right: 16px; border: 0; background: transparent; color: var(--muted); font-size: 27px; cursor: pointer; }
+.modal-open { overflow: hidden; }
+.erp-modal-wide { width: min(1420px,100%); max-height: calc(100vh - 40px); overflow: auto; }
+.item-history-link { border: 0; padding: 0; background: transparent; color: var(--blue); font: inherit; font-weight: 850; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(23,107,135,.3); text-underline-offset: 3px; }
+.item-history-link:hover { color: var(--teal); text-decoration-color: currentColor; }
+.item-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-right: 25px; }
+.item-history-heading h2 { margin: 7px 0 4px; }
+.item-history-heading p { margin: 0; color: var(--muted); }
+.item-history-kpis { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin: 22px 0 16px; }
+.item-history-kpis article { padding: 15px 17px; border: 1px solid var(--line); border-radius: 13px; background: #f7fafc; }
+.item-history-kpis span, .item-history-kpis strong, .item-history-kpis b { display: block; }
+.item-history-kpis span { color: var(--muted); font-size: 12px; font-weight: 800; }
+.item-history-kpis strong { margin-top: 6px; font-size: 13px; }
+.item-history-kpis b { margin-top: 8px; color: var(--blue); font-size: 20px; }
+.item-history-table { max-height: 56vh; }
+.item-history-table table { min-width: 1420px; }
+.item-history-table td { white-space: nowrap; }
+.item-history-table td:nth-child(3) { white-space: normal; min-width: 210px; }
+.item-history-table tfoot th { position: sticky; bottom: 0; background: #dfeaf1; color: var(--ink); }
 .form-error { border-radius: 9px; padding: 10px 12px; background: #fff0ef; color: #a52f28; font-size: 12px; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
@@ -251,6 +269,10 @@ textarea { min-height: 95px; resize: vertical; }
   .auth-row input, .auth-row button { width: 100%; }
   .auth-login-grid { grid-template-columns: 1fr; }
   .auth-login-grid button { width: 100%; }
+  .erp-modal-backdrop { padding: 8px; }
+  .erp-modal-wide { max-height: calc(100vh - 16px); padding: 22px 16px; }
+  .item-history-heading { flex-direction: column; }
+  .item-history-kpis { grid-template-columns: 1fr; }
   .private-header .brand small, .private-badge { display: none; }
   .owner-hero { min-height: 720px; }
   .owner-hero-image { object-position: 64% center; }

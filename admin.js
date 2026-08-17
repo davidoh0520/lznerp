@@ -190,6 +190,22 @@ function latestTaxIncludedUnit(item, side) {
   return fallback ? fallback * 1.13 : 0;
 }
 
+function transactionUnitIncluded(row, side) {
+  const quantity = Number(row[`${side}_qty`] || 0);
+  const hasAmount = row[`${side}_amount_inc`] !== null || row[`${side}_amount_ex`] !== null;
+  return quantity && hasAmount ? transactionAmount(row, side) / quantity : null;
+}
+
+function transactionQuantityCell(row, side) {
+  const value = row[`${side}_qty`];
+  return value === null || value === undefined ? '-' : ERP.number(value, 4);
+}
+
+function transactionUnitCell(row, side) {
+  const value = transactionUnitIncluded(row, side);
+  return value === null ? '-' : ERP.money(value, 'CNY');
+}
+
 function renderDashboard() {
   const tx = adminState.transactions;
   const purchase = tx.reduce((s, x) => s + transactionAmount(x, 'purchase'), 0);
@@ -347,7 +363,63 @@ function renderItems() {
 function filterItemsV2() {
   const q = (document.getElementById('itemSearchV2')?.value || '').toLowerCase();
   const rows = adminState.items.filter(x => !q || `${x.item_code} ${x.item_name} ${x.normalized_key}`.toLowerCase().includes(q));
-  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가(세후)</th><th>최근 판매단가(세후)</th><th>도면</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><strong>${ERP.escapeHtml(x.item_name)}</strong></td><td>${x.product}</td><td>${x.process_type}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'purchase'),'CNY')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'sale'),'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
+  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가(세후)</th><th>최근 판매단가(세후)</th><th>도면</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);const historyCount=adminState.transactions.filter(t=>t.normalized_part_name===x.normalized_key).length;return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><button class="item-history-link" onclick="showItemTransactionHistory(${x.id})">${ERP.escapeHtml(x.item_name)}</button><br><small>${historyCount ? `거래 ${historyCount}건 보기` : '거래 기록 없음'}</small></td><td>${ERP.escapeHtml(x.product)}</td><td>${ERP.escapeHtml(x.process_type)}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'purchase'),'CNY')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'sale'),'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
+}
+
+function showItemTransactionHistory(itemId) {
+  const item = adminState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목 정보를 찾을 수 없습니다.', 'error');
+  const history = adminState.transactions
+    .filter(x => x.normalized_part_name === item.normalized_key)
+    .sort((a, b) => String(b.transaction_date || '').localeCompare(String(a.transaction_date || '')) || Number(b.id) - Number(a.id));
+  const purchased = history.filter(x => x.purchase_status === '구매완료');
+  const sold = history.filter(x => x.sale_amount_inc !== null || x.sale_amount_ex !== null);
+  const purchaseTotal = purchased.reduce((sum, x) => sum + transactionAmount(x, 'purchase'), 0);
+  const saleTotal = sold.reduce((sum, x) => sum + transactionAmount(x, 'sale'), 0);
+  const profitTotal = history.reduce((sum, x) => sum + transactionProfit(x), 0);
+  const purchaseQty = purchased.reduce((sum, x) => sum + Number(x.purchase_qty || 0), 0);
+  const saleQty = sold.reduce((sum, x) => sum + Number(x.sale_qty || 0), 0);
+  const currentDrawings = adminState.drawings.filter(x => Number(x.catalog_item_id) === Number(item.id) && x.is_current);
+  closeItemTransactionHistory();
+  const modal = document.createElement('div');
+  modal.id = 'itemHistoryModal';
+  modal.className = 'erp-modal-backdrop';
+  modal.onclick = event => { if (event.target === modal) closeItemTransactionHistory(); };
+  modal.innerHTML = `<section class="erp-modal erp-modal-wide" role="dialog" aria-modal="true" aria-labelledby="itemHistoryTitle">
+    <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeItemTransactionHistory()">×</button>
+    <div class="item-history-heading">
+      <div><span class="badge">${ERP.escapeHtml(item.item_code)}</span><h2 id="itemHistoryTitle">${ERP.escapeHtml(item.item_name)}</h2><p>${ERP.escapeHtml(item.product)} · ${ERP.escapeHtml(item.process_type)} · ${ERP.escapeHtml(item.material || '소재 미등록')}</p></div>
+      ${currentDrawings.length ? `<button class="btn btn-soft" onclick="openItemDrawings(${item.id})">현재 도면 ${currentDrawings.length}개 열기</button>` : ''}
+    </div>
+    <div class="item-history-kpis">
+      <article><span>구매완료</span><strong>${purchased.length}건 · ${ERP.number(purchaseQty, 4)}개</strong><b>${ERP.money(purchaseTotal, 'CNY')}</b></article>
+      <article><span>판매기록</span><strong>${sold.length}건 · ${ERP.number(saleQty, 4)}개</strong><b>${ERP.money(saleTotal, 'CNY')}</b></article>
+      <article><span>매출총이익 · 세후</span><strong>${history.length}건 전체</strong><b>${ERP.money(profitTotal, 'CNY')}</b></article>
+    </div>
+    ${history.length ? `<div class="table-wrap item-history-table"><table><thead><tr><th>일자</th><th>구매상태</th><th>구매처 · 원본 시트</th><th>주문번호</th><th>구매수량</th><th>구매단가<br><small>세후</small></th><th>구매금액<br><small>세후</small></th><th>판매수량</th><th>판매단가<br><small>세후</small></th><th>판매금액<br><small>세후</small></th><th>이익<br><small>세후</small></th></tr></thead><tbody>${history.map(x => `<tr>
+      <td>${ERP.date(x.transaction_date)}<br><small>${ERP.escapeHtml(x.transaction_code || '')}</small></td>
+      <td><span class="badge ${x.purchase_status === '구매완료' ? 'good' : 'warn'}">${ERP.escapeHtml(x.purchase_status || '-')}</span><br><small>${ERP.escapeHtml(x.sale_rule || '')}</small></td>
+      <td><strong>${ERP.escapeHtml(x.supplier_name || '-')}</strong><br><small>${ERP.escapeHtml(x.source_sheet || '-')} · ${x.source_row ? `${ERP.number(x.source_row, 0)}행` : '-'}</small></td>
+      <td>${ERP.escapeHtml(x.order_no || '-')}</td>
+      <td>${transactionQuantityCell(x, 'purchase')}</td><td>${transactionUnitCell(x, 'purchase')}</td><td>${transactionCell(x, 'purchase')}</td>
+      <td>${transactionQuantityCell(x, 'sale')}</td><td>${transactionUnitCell(x, 'sale')}</td><td>${transactionCell(x, 'sale')}</td>
+      <td><strong>${ERP.money(transactionProfit(x), 'CNY')}</strong>${x.note ? `<br><small>${ERP.escapeHtml(x.note)}</small>` : ''}</td>
+    </tr>`).join('')}</tbody><tfoot><tr><th colspan="4">합계</th><th>${ERP.number(purchaseQty, 4)}</th><th>-</th><th>${ERP.money(purchaseTotal, 'CNY')}</th><th>${ERP.number(saleQty, 4)}</th><th>-</th><th>${ERP.money(saleTotal, 'CNY')}</th><th>${ERP.money(profitTotal, 'CNY')}</th></tr></tfoot></table></div>` : '<div class="empty">처음 올린 구매·판매 엑셀에서 이 품목과 일치하는 거래 기록이 없습니다.</div>'}
+    <p class="auth-note">금액과 단가는 모두 세후 기준입니다. ‘견적만’은 구매 합계에서 제외했습니다.</p>
+  </section>`;
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  window.itemHistoryEscapeHandler = event => { if (event.key === 'Escape') closeItemTransactionHistory(); };
+  document.addEventListener('keydown', window.itemHistoryEscapeHandler);
+}
+
+function closeItemTransactionHistory() {
+  document.getElementById('itemHistoryModal')?.remove();
+  document.body.classList.remove('modal-open');
+  if (window.itemHistoryEscapeHandler) {
+    document.removeEventListener('keydown', window.itemHistoryEscapeHandler);
+    window.itemHistoryEscapeHandler = null;
+  }
 }
 
 async function openItemDrawings(itemId) {
