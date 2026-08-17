@@ -363,7 +363,88 @@ function renderItems() {
 function filterItemsV2() {
   const q = (document.getElementById('itemSearchV2')?.value || '').toLowerCase();
   const rows = adminState.items.filter(x => !q || `${x.item_code} ${x.item_name} ${x.normalized_key}`.toLowerCase().includes(q));
-  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가(세후)</th><th>최근 판매단가(세후)</th><th>도면</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);const historyCount=adminState.transactions.filter(t=>t.normalized_part_name===x.normalized_key).length;return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><button class="item-history-link" onclick="showItemTransactionHistory(${x.id})">${ERP.escapeHtml(x.item_name)}</button><br><small>${historyCount ? `거래 ${historyCount}건 보기` : '거래 기록 없음'}</small></td><td>${ERP.escapeHtml(x.product)}</td><td>${ERP.escapeHtml(x.process_type)}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'purchase'),'CNY')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'sale'),'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
+  document.getElementById('itemsV2Table').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>코드</th><th>품목</th><th>제품</th><th>분류</th><th>소재</th><th>최근 매입단가(세후)</th><th>최근 판매단가(세후)</th><th>도면</th><th>관리</th></tr></thead><tbody>${rows.map(x=>{const current=adminState.drawings.filter(d=>Number(d.catalog_item_id)===Number(x.id)&&d.is_current);const historyCount=adminState.transactions.filter(t=>t.normalized_part_name===x.normalized_key).length;return `<tr><td>${ERP.escapeHtml(x.item_code)}</td><td><button class="item-history-link" onclick="showItemTransactionHistory(${x.id})">${ERP.escapeHtml(x.item_name)}</button><br><small>${historyCount ? `거래 ${historyCount}건 보기` : '거래 기록 없음'}</small></td><td>${ERP.escapeHtml(x.product)}</td><td>${ERP.escapeHtml(x.process_type)}</td><td>${ERP.escapeHtml(x.material||'-')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'purchase'),'CNY')}</td><td>${ERP.money(latestTaxIncludedUnit(x,'sale'),'CNY')}</td><td>${current.length?`<button class="btn btn-small btn-soft" onclick="openItemDrawings(${x.id})">${current.length}개 열기</button>`:`<span class="badge ${x.drawing_status==='미매칭'?'bad':'good'}">${ERP.escapeHtml(x.drawing_status)}</span>`}</td><td><button class="btn btn-small btn-primary" onclick="openItemEditor(${x.id})">품목 편집</button></td></tr>`}).join('')}</tbody></table></div>` : '<div class="empty">품목이 없습니다.</div>';
+}
+
+function selectOptions(values, current) {
+  return values.map(value => `<option value="${ERP.escapeHtml(value)}" ${value === current ? 'selected' : ''}>${ERP.escapeHtml(value)}</option>`).join('');
+}
+
+function openAdminEditor(content) {
+  closeAdminEditor();
+  const modal = document.createElement('div');
+  modal.id = 'adminEditorModal';
+  modal.className = 'erp-modal-backdrop';
+  modal.onclick = event => { if (event.target === modal) closeAdminEditor(); };
+  modal.innerHTML = content;
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  window.adminEditorEscapeHandler = event => { if (event.key === 'Escape') closeAdminEditor(); };
+  document.addEventListener('keydown', window.adminEditorEscapeHandler);
+}
+
+function closeAdminEditor() {
+  document.getElementById('adminEditorModal')?.remove();
+  document.body.classList.remove('modal-open');
+  if (window.adminEditorEscapeHandler) {
+    document.removeEventListener('keydown', window.adminEditorEscapeHandler);
+    window.adminEditorEscapeHandler = null;
+  }
+}
+
+function openItemEditor(itemId) {
+  const item = adminState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
+  const historyCount = adminState.transactions.filter(x => x.normalized_part_name === item.normalized_key).length;
+  openAdminEditor(`<section class="erp-modal erp-modal-editor" role="dialog" aria-modal="true" aria-labelledby="itemEditorTitle">
+    <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeAdminEditor()">×</button>
+    <h2 id="itemEditorTitle">품목 정보 편집</h2>
+    <p>${ERP.escapeHtml(item.item_code)} · 저장하면 연결된 과거 거래 ${historyCount}건에도 같은 분류를 적용합니다.</p>
+    <form onsubmit="saveItemEdit(event,${item.id})">
+      <div class="form-grid">
+        <div class="field full"><label>품목명</label><input id="editItemName" value="${ERP.escapeHtml(item.item_name)}" required></div>
+        <div class="field"><label>제품</label><select id="editItemProduct">${selectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], item.product)}</select></div>
+        <div class="field"><label>가공 분류</label><select id="editItemProcess">${selectOptions(['MCT','CNC','GLASS','기어류','기타'], item.process_type)}</select></div>
+        <div class="field"><label>소재</label><input id="editItemMaterial" value="${ERP.escapeHtml(item.material || '')}" placeholder="예: SUS304, AL6061, GLASS"></div>
+        <div class="field"><label>단위</label><input id="editItemUnit" value="${ERP.escapeHtml(item.unit || 'EA')}" required></div>
+        <div class="field full"><label>비고</label><textarea id="editItemRemark">${ERP.escapeHtml(item.remark || '')}</textarea></div>
+      </div>
+      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="closeAdminEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
+    </form>
+  </section>`);
+}
+
+async function saveItemEdit(event, itemId) {
+  event.preventDefault();
+  const button = event.submitter;
+  const item = adminState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
+  const payload = {
+    item_name: document.getElementById('editItemName').value.trim(),
+    product: document.getElementById('editItemProduct').value,
+    process_type: document.getElementById('editItemProcess').value,
+    material: document.getElementById('editItemMaterial').value.trim() || null,
+    unit: document.getElementById('editItemUnit').value.trim() || 'EA',
+    remark: document.getElementById('editItemRemark').value.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  if (!payload.item_name) return ERP.toast('품목명을 입력해 주세요.', 'error');
+  button.disabled = true;
+  try {
+    const itemResult = await ERP.client.from('erp_v2_items').update(payload).eq('id', item.id).select('id').single();
+    if (itemResult.error) throw itemResult.error;
+    const transactionPayload = { part_name: payload.item_name, product: payload.product, process_type: payload.process_type, material: payload.material };
+    const historyResult = await ERP.client.from('erp_v2_transactions').update(transactionPayload).eq('normalized_part_name', item.normalized_key).select('id');
+    if (historyResult.error) {
+      await ERP.client.from('erp_v2_items').update({ item_name: item.item_name, product: item.product, process_type: item.process_type, material: item.material, unit: item.unit, remark: item.remark, updated_at: new Date().toISOString() }).eq('id', item.id);
+      throw historyResult.error;
+    }
+    closeAdminEditor();
+    await loadAdminData();
+    renderItems();
+    ERP.toast(`품목 정보와 거래 ${historyResult.data?.length || 0}건을 수정했습니다.`, 'success');
+  } catch (error) { ERP.toast(error.message, 'error'); }
+  finally { button.disabled = false; }
 }
 
 function showItemTransactionHistory(itemId) {
@@ -552,12 +633,80 @@ async function toggleAccessMember(id, active) {
 }
 
 function renderSuppliers() {
-  document.getElementById('adminContent').innerHTML = `<div class="card card-pad"><div class="section-title"><div><h2>업체 장부</h2><p>제공받은 주문서 양식의 업체 정보를 관리자 전용으로 보관합니다.</p></div><button class="btn btn-accent" onclick="renderPurchaseOrderBuilder()">새 발주서</button></div>${adminState.suppliers.length ? `<div class="table-wrap"><table><thead><tr><th>업체</th><th>법인명</th><th>주소</th><th>참조 양식</th><th></th></tr></thead><tbody>${adminState.suppliers.map(x => `<tr><td><strong>${ERP.escapeHtml(x.display_name)}</strong></td><td>${ERP.escapeHtml(x.legal_name || '-')}</td><td>${ERP.escapeHtml(x.address || '-')}</td><td>${ERP.escapeHtml(x.template_kind)}</td><td><button class="btn btn-small btn-primary" onclick="renderPurchaseOrderBuilder(${x.id})">발주서 작성</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">등록된 업체가 없습니다.</div>'}</div>`;
+  document.getElementById('adminContent').innerHTML = `<div class="card card-pad"><div class="section-title"><div><h2>업체 장부</h2><p>업체명과 법인·주소·계좌 정보를 직접 수정할 수 있습니다.</p></div><button class="btn btn-accent" onclick="renderPurchaseOrderBuilder()">새 발주서</button></div>${adminState.suppliers.length ? `<div class="table-wrap"><table><thead><tr><th>업체</th><th>법인명</th><th>주소</th><th>참조 양식</th><th>관리</th></tr></thead><tbody>${adminState.suppliers.map(x => `<tr><td><strong>${ERP.escapeHtml(x.display_name)}</strong><br><span class="badge ${x.active ? 'good' : 'bad'}">${x.active ? '사용 중' : '중지'}</span></td><td>${ERP.escapeHtml(x.legal_name || '-')}</td><td>${ERP.escapeHtml(x.address || '-')}</td><td>${ERP.escapeHtml(x.template_kind)}</td><td><div class="row-actions"><button class="btn btn-small btn-soft" onclick="openSupplierEditor(${x.id})">업체 편집</button>${x.active ? `<button class="btn btn-small btn-primary" onclick="renderPurchaseOrderBuilder(${x.id})">발주서 작성</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">등록된 업체가 없습니다.</div>'}</div>`;
+}
+
+function openSupplierEditor(supplierId) {
+  const supplier = adminState.suppliers.find(x => Number(x.id) === Number(supplierId));
+  if (!supplier) return ERP.toast('업체를 찾을 수 없습니다.', 'error');
+  const aliases = new Set([supplier.display_name, supplier.legal_name].filter(Boolean));
+  const historyCount = adminState.transactions.filter(x => aliases.has(x.supplier_name)).length;
+  openAdminEditor(`<section class="erp-modal erp-modal-editor" role="dialog" aria-modal="true" aria-labelledby="supplierEditorTitle">
+    <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeAdminEditor()">×</button>
+    <h2 id="supplierEditorTitle">업체 정보 편집</h2>
+    <p>${ERP.escapeHtml(supplier.supplier_key)} · 발주서와 업체 장부에 사용하는 정보입니다.</p>
+    <form onsubmit="saveSupplierEdit(event,${supplier.id})">
+      <div class="form-grid">
+        <div class="field"><label>표시 업체명</label><input id="editSupplierName" value="${ERP.escapeHtml(supplier.display_name)}" required></div>
+        <div class="field"><label>법인명</label><input id="editSupplierLegalName" value="${ERP.escapeHtml(supplier.legal_name || '')}"></div>
+        <div class="field"><label>세금번호</label><input id="editSupplierTaxId" value="${ERP.escapeHtml(supplier.tax_id || '')}"></div>
+        <div class="field"><label>참조 양식</label><select id="editSupplierTemplate">${selectOptions(['purchase_order','quotation','price_offer'], supplier.template_kind)}</select></div>
+        <div class="field full"><label>주소</label><textarea id="editSupplierAddress">${ERP.escapeHtml(supplier.address || '')}</textarea></div>
+        <div class="field"><label>은행명</label><input id="editSupplierBank" value="${ERP.escapeHtml(supplier.bank_name || '')}"></div>
+        <div class="field"><label>계좌번호</label><input id="editSupplierAccount" value="${ERP.escapeHtml(supplier.bank_account || '')}"></div>
+      </div>
+      <label class="editor-check"><input id="editSupplierActive" type="checkbox" ${supplier.active ? 'checked' : ''}> 발주서에서 이 업체 사용</label>
+      <label class="editor-check"><input id="editSupplierSyncHistory" type="checkbox" checked> 과거 거래 ${historyCount}건의 업체명도 새 표시 업체명으로 통일</label>
+      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="closeAdminEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
+    </form>
+  </section>`);
+}
+
+async function saveSupplierEdit(event, supplierId) {
+  event.preventDefault();
+  const button = event.submitter;
+  const supplier = adminState.suppliers.find(x => Number(x.id) === Number(supplierId));
+  if (!supplier) return ERP.toast('업체를 찾을 수 없습니다.', 'error');
+  const displayName = document.getElementById('editSupplierName').value.trim();
+  if (!displayName) return ERP.toast('표시 업체명을 입력해 주세요.', 'error');
+  const payload = {
+    display_name: displayName,
+    legal_name: document.getElementById('editSupplierLegalName').value.trim() || null,
+    tax_id: document.getElementById('editSupplierTaxId').value.trim() || null,
+    template_kind: document.getElementById('editSupplierTemplate').value,
+    address: document.getElementById('editSupplierAddress').value.trim() || null,
+    bank_name: document.getElementById('editSupplierBank').value.trim() || null,
+    bank_account: document.getElementById('editSupplierAccount').value.trim() || null,
+    active: document.getElementById('editSupplierActive').checked,
+    updated_at: new Date().toISOString()
+  };
+  const syncHistory = document.getElementById('editSupplierSyncHistory').checked;
+  button.disabled = true;
+  try {
+    const supplierResult = await ERP.client.from('erp_v2_suppliers').update(payload).eq('id', supplier.id).select('id').single();
+    if (supplierResult.error) throw supplierResult.error;
+    let historyCount = 0;
+    if (syncHistory) {
+      const aliases = [...new Set([supplier.display_name, supplier.legal_name].filter(Boolean))];
+      const [historyResult, accessResult] = await Promise.all([
+        ERP.client.from('erp_v2_transactions').update({ supplier_name: displayName }).in('supplier_name', aliases).select('id'),
+        ERP.client.from('erp_v2_access_members').update({ supplier_name: displayName, updated_at: new Date().toISOString() }).in('supplier_name', aliases).select('id')
+      ]);
+      if (historyResult.error) throw historyResult.error;
+      if (accessResult.error) throw accessResult.error;
+      historyCount = historyResult.data?.length || 0;
+    }
+    closeAdminEditor();
+    await loadAdminData();
+    renderSuppliers();
+    ERP.toast(`업체 정보를 저장했습니다.${syncHistory ? ` 과거 거래 ${historyCount}건도 변경했습니다.` : ''}`, 'success');
+  } catch (error) { ERP.toast(error.message, 'error'); }
+  finally { button.disabled = false; }
 }
 
 function renderPurchaseOrderBuilder(selectedSupplierId = '') {
   adminState.poLines = 1;
-  const options = adminState.suppliers.map(x => `<option value="${x.id}" ${Number(selectedSupplierId) === Number(x.id) ? 'selected' : ''}>${ERP.escapeHtml(x.display_name)}</option>`).join('');
+  const options = adminState.suppliers.filter(x => x.active).map(x => `<option value="${x.id}" ${Number(selectedSupplierId) === Number(x.id) ? 'selected' : ''}>${ERP.escapeHtml(x.display_name)}</option>`).join('');
   document.getElementById('adminContent').innerHTML = `<div class="card form-card"><div class="section-title"><div><h2>중국 공급사 발주서</h2><p>출력 문서는 중국어 전용 양식으로 작성됩니다.</p></div><button class="btn btn-soft" onclick="renderSuppliers()">업체 목록</button></div><div class="form-grid three"><div class="field"><label>공급사</label><select id="poSupplier"><option value="">선택</option>${options}</select></div><div class="field"><label>발주번호</label><input id="poNumber" value="PO-${new Date().toISOString().slice(2,10).replaceAll('-','')}"></div><div class="field"><label>발주일</label><input id="poDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>가격 기준</label><select id="poPriceBasis"><option>含税 / 세금 포함</option><option>不含税 / 세금 별도</option></select></div><div class="field"><label>통화</label><select id="poCurrency"><option>CNY</option><option>USD</option><option>KRW</option></select></div></div><section class="form-section"><div class="section-title"><h2>품목</h2><button class="btn btn-soft" onclick="addPoLine()">+ 품목 추가</button></div><div id="poLines">${poLineHtml(0)}</div></section><div class="field"><label>중문 비고</label><textarea id="poNotes" placeholder="请用中文填写交货期、包装及检验要求"></textarea></div><div style="display:flex;justify-content:flex-end;margin-top:20px"><button class="btn btn-accent" onclick="printSupplierPurchaseOrder()">중문 발주서 보기 · PDF</button></div><datalist id="poItemList">${adminState.items.map(x => `<option value="${ERP.escapeHtml(x.item_name)}">${ERP.escapeHtml(x.material || '')}</option>`).join('')}</datalist></div>`;
   document.getElementById('poPriceBasis').selectedIndex = 1;
   document.getElementById('poPriceBasis').closest('.field').insertAdjacentHTML('afterend', '<div class="field"><label>부가세율(%)</label><input id="poTaxRate" type="number" min="0" max="100" step="0.01" value="13"></div>');
