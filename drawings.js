@@ -88,7 +88,7 @@ function renderDrawingShell(root) {
       <div class="sidebar-footer"><div><span class="badge good">${roleLabel()}</span><br>${ERP.escapeHtml(drawingState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1>도면 보관함</h1><p>PDF는 브라우저에서 바로 보고, DWG·STP는 내려받아 CAD에서 열 수 있습니다. 교체본은 기존 버전을 보존합니다.</p></div><div class="top-actions"><button class="btn btn-soft" onclick="refreshDrawingLibrary()">새로고침</button>${canEditDrawings() ? '<label class="btn btn-accent file-button">폴더 최신본 동기화<input id="folderDrawingFiles" type="file" webkitdirectory directory multiple onchange="syncDrawingFolder(this.files)"></label>' : ''}</div></header>
+      <header class="topbar"><div><h1>도면 보관함</h1><p>PDF는 브라우저에서 바로 보고, DWG·STP는 내려받아 CAD에서 열 수 있습니다. 교체본은 기존 버전을 보존합니다.</p></div><div class="top-actions"><button class="btn btn-soft" onclick="refreshDrawingLibrary()">새로고침</button>${canEditDrawings() ? '<button class="btn btn-primary" type="button" onclick="openNewDrawingItem()">새 품목 추가</button><label class="btn btn-accent file-button">폴더 최신본 동기화<input id="folderDrawingFiles" type="file" webkitdirectory directory multiple onchange="syncDrawingFolder(this.files)"></label>' : ''}</div></header>
       <section id="drawingContent">
         <div class="grid-kpi drawing-kpis">
           <article class="card kpi" style="--accent:#dfeef5"><label>접근 가능 품목</label><strong>${drawingState.items.length}</strong></article>
@@ -100,6 +100,123 @@ function renderDrawingShell(root) {
         <div class="card card-pad"><div class="filters"><input id="drawingSearch" placeholder="품목명·코드 검색" oninput="renderDrawingTable()"><select id="drawingProduct" onchange="renderDrawingTable()"><option value="">전체 제품</option><option>INE-200</option><option>INT-200</option><option>INB-200</option><option>INA-200</option><option>제품확인필요</option></select><select id="drawingProcess" onchange="renderDrawingTable()"><option value="">전체 가공·소재</option><option>MCT</option><option>CNC</option><option>GLASS</option><option>기어류</option><option>기타</option></select><span id="drawingCount" class="badge"></span></div><div id="drawingTable"></div></div>
       </section>
     </main>`;
+}
+
+function openNewDrawingItem() {
+  if (!canEditDrawings()) return ERP.toast('새 품목 등록 권한이 없습니다.', 'error');
+  closeNewDrawingItem();
+  const modal = document.createElement('div');
+  modal.id = 'drawingNewItemModal';
+  modal.className = 'erp-modal-backdrop';
+  modal.onclick = event => { if (event.target === modal) closeNewDrawingItem(); };
+  modal.innerHTML = `<section class="erp-modal erp-modal-editor" role="dialog" aria-modal="true" aria-labelledby="drawingNewItemTitle">
+    <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeNewDrawingItem()">×</button>
+    <h2 id="drawingNewItemTitle">새 도면 품목 추가</h2>
+    <p>품목을 먼저 등록하고, 선택한 도면은 이 품목의 첫 번째 버전으로 함께 보관합니다.</p>
+    <form onsubmit="saveNewDrawingItem(event)">
+      <div class="form-grid">
+        <div class="field full"><label>품목명</label><input id="drawingNewItemName" oninput="updateNewDrawingItemCode()" placeholder="예: AB IC MOTOR COVER" required></div>
+        <div class="field full"><label>품목 코드</label><input id="drawingNewItemCode" oninput="this.dataset.manual='true'" placeholder="비워두면 품목명에서 자동 생성"><small>영문·숫자·한글을 사용할 수 있으며 공백은 밑줄로 정리됩니다.</small></div>
+        <div class="field"><label>제품</label><select id="drawingNewItemProduct">${drawingSelectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], '제품확인필요')}</select></div>
+        <div class="field"><label>가공 분류</label><select id="drawingNewItemProcess">${drawingSelectOptions(['MCT','CNC','GLASS','기어류','기타'], '기타')}</select></div>
+        <div class="field"><label>소재</label><input id="drawingNewItemMaterial" placeholder="예: SUS304, AL6061, GLASS"></div>
+        <div class="field"><label>단위</label><input id="drawingNewItemUnit" value="EA" required></div>
+        <div class="field full"><label>비고</label><textarea id="drawingNewItemRemark" placeholder="추가로 관리할 내용을 입력하세요."></textarea></div>
+        <div class="field full"><label>도면 파일 (선택)</label><input id="drawingNewItemFiles" type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg"><small>PDF·DWG·STP 등 형식별 최신 파일을 한 개씩 등록합니다. 품목만 먼저 등록해도 됩니다.</small></div>
+      </div>
+      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="closeNewDrawingItem()">취소</button><button class="btn btn-primary" type="submit">품목 등록</button></div>
+    </form>
+  </section>`;
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  window.drawingNewItemEscapeHandler = event => { if (event.key === 'Escape') closeNewDrawingItem(); };
+  document.addEventListener('keydown', window.drawingNewItemEscapeHandler);
+  setTimeout(() => document.getElementById('drawingNewItemName')?.focus(), 0);
+}
+
+function closeNewDrawingItem() {
+  document.getElementById('drawingNewItemModal')?.remove();
+  document.body.classList.remove('modal-open');
+  if (window.drawingNewItemEscapeHandler) {
+    document.removeEventListener('keydown', window.drawingNewItemEscapeHandler);
+    window.drawingNewItemEscapeHandler = null;
+  }
+}
+
+function updateNewDrawingItemCode() {
+  const name = document.getElementById('drawingNewItemName');
+  const code = document.getElementById('drawingNewItemCode');
+  if (!name || !code || code.dataset.manual === 'true') return;
+  code.value = normalizedBaseName(name.value);
+}
+
+function friendlyNewItemError(error) {
+  if (error?.code === '23505' || /duplicate key|already exists/i.test(error?.message || '')) {
+    return '같은 품목 코드가 이미 있습니다. 기존 품목을 검색하거나 다른 코드를 입력해 주세요.';
+  }
+  return error?.message || '새 품목을 등록하지 못했습니다.';
+}
+
+async function saveNewDrawingItem(event) {
+  event.preventDefault();
+  const button = event.submitter;
+  const itemName = document.getElementById('drawingNewItemName').value.trim();
+  const itemCode = normalizedBaseName(document.getElementById('drawingNewItemCode').value || itemName);
+  if (!itemName) return ERP.toast('품목명을 입력해 주세요.', 'error');
+  if (!itemCode) return ERP.toast('품목 코드를 입력해 주세요.', 'error');
+
+  const payload = {
+    item_code: itemCode,
+    normalized_key: itemCode,
+    item_name: itemName,
+    product: document.getElementById('drawingNewItemProduct').value,
+    process_type: document.getElementById('drawingNewItemProcess').value,
+    material: document.getElementById('drawingNewItemMaterial').value.trim() || null,
+    unit: document.getElementById('drawingNewItemUnit').value.trim() || 'EA',
+    remark: document.getElementById('drawingNewItemRemark').value.trim() || null,
+    drawing_status: '미매칭',
+    updated_at: new Date().toISOString()
+  };
+  const selectedFiles = [...(document.getElementById('drawingNewItemFiles').files || [])];
+  const unsupportedFiles = selectedFiles.filter(file => !isSupportedDrawing(file));
+  if (unsupportedFiles.length) {
+    return ERP.toast('지원하지 않는 형식이거나 50MB를 초과한 도면이 있습니다.', 'error');
+  }
+  const files = latestFilesByKind(selectedFiles);
+  button.disabled = true;
+
+  try {
+    const { data: item, error } = await ERP.client
+      .from('erp_v2_items')
+      .insert(payload)
+      .select('id,item_code,item_name,normalized_key,product,process_type,material,unit,remark,drawing_status,drawing_formats,drawing_path')
+      .single();
+    if (error) throw error;
+
+    let uploaded = 0;
+    let failed = 0;
+    drawingState.items.push(item);
+    for (const file of files) {
+      try {
+        const result = await uploadCatalogDrawing(item, file, '신규 품목 등록');
+        if (result === 'uploaded') uploaded++;
+      } catch (uploadError) {
+        failed++;
+        console.error(file.name, uploadError);
+      }
+    }
+
+    closeNewDrawingItem();
+    await loadDrawingLibrary();
+    renderDrawingShell(document.getElementById('drawingRoot'));
+    renderDrawingTable();
+    const drawingMessage = files.length ? ` · 도면 ${uploaded}개 등록${failed ? `, ${failed}개 실패` : ''}` : '';
+    ERP.toast(`${item.item_name} 품목을 추가했습니다${drawingMessage}.`, failed ? 'error' : 'success');
+  } catch (error) {
+    ERP.toast(friendlyNewItemError(error), 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function refreshDrawingLibrary() {
@@ -293,7 +410,7 @@ function normalizedBaseName(name) {
     .replace(/\s*\(\d+\)\s*$/, '')
     .normalize('NFKC')
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/[^\p{L}\p{N}]+/gu, '_')
     .replace(/^_+|_+$/g, '')
     .replace(/_+/g, '_');
 }
