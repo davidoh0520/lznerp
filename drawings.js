@@ -258,18 +258,31 @@ function drawingSelectOptions(values, current) {
   return values.map(value => `<option value="${ERP.escapeHtml(value)}" ${value === current ? 'selected' : ''}>${ERP.escapeHtml(value)}</option>`).join('');
 }
 
-function openDrawingItemEditor(itemId) {
+function currentItemPdf(itemId) {
+  const files = drawingsForItem(itemId);
+  return files.find(x => x.is_current && x.file_kind === 'PDF') || files.find(x => x.file_kind === 'PDF') || null;
+}
+
+async function openDrawingItemEditor(itemId) {
   const item = drawingState.items.find(x => Number(x.id) === Number(itemId));
   if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
   closeDrawingItemEditor();
+  const pdf = currentItemPdf(itemId);
+  let pdfUrl = null;
+  if (pdf) pdfUrl = await ERP.signedDrawingUrl(pdf.storage_path, 900).catch(() => null);
   const modal = document.createElement('div');
   modal.id = 'drawingItemEditorModal';
   modal.className = 'erp-modal-backdrop';
   modal.onclick = event => { if (event.target === modal) closeDrawingItemEditor(); };
-  modal.innerHTML = `<section class="erp-modal erp-modal-editor" role="dialog" aria-modal="true" aria-labelledby="drawingItemEditorTitle">
+  modal.innerHTML = `<section class="erp-modal erp-modal-editor erp-modal-split" role="dialog" aria-modal="true" aria-labelledby="drawingItemEditorTitle">
     <button class="erp-modal-close" type="button" aria-label="닫기" onclick="closeDrawingItemEditor()">×</button>
     <h2 id="drawingItemEditorTitle">품목정보 수정</h2>
     <p>${ERP.escapeHtml(item.item_code)} · 도면과 연결된 고유 코드는 유지됩니다.</p>
+    <div class="drawing-edit-split">
+      <div class="drawing-preview-pane">
+        <span>도면 미리보기</span>
+        ${pdfUrl ? `<iframe src="${ERP.escapeHtml(pdfUrl)}#toolbar=0" title="도면 미리보기"></iframe>` : `<div class="drawing-preview-empty">이 품목의 PDF 도면이 없습니다.<br>도면을 먼저 업로드하면 여기서 바로 확인할 수 있습니다.</div>`}
+      </div>
     <form onsubmit="saveDrawingItemEdit(event,${item.id})">
       <div class="form-grid">
         <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(item.item_name)}" oninput="this.value=this.value.toUpperCase()" required></div>
@@ -282,6 +295,7 @@ function openDrawingItemEditor(itemId) {
       <p class="auth-note">품목명·제품·가공분류·소재를 바꾸면 이 품목에 연결된 과거 매입·매출 기록도 같은 내용으로 정리됩니다.</p>
       <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="fillItemInfoFromDrawing(${item.id}, this)">도면에서 제품·소재 불러오기</button><button class="btn btn-soft" type="button" onclick="closeDrawingItemEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
     </form>
+    </div>
   </section>`;
   document.body.appendChild(modal);
   document.body.classList.add('modal-open');
@@ -302,7 +316,7 @@ function closeDrawingItemEditor() {
 async function fillItemInfoFromDrawing(itemId, button) {
   const item = drawingState.items.find(x => Number(x.id) === Number(itemId));
   if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
-  const pdf = drawingsForItem(itemId).find(x => x.file_kind === 'PDF');
+  const pdf = currentItemPdf(itemId);
   if (!pdf) return ERP.toast('이 품목의 PDF 도면이 없습니다.', 'error');
   const originalLabel = button.textContent;
   button.disabled = true;
