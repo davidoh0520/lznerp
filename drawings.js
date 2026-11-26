@@ -88,7 +88,7 @@ function renderDrawingShell(root) {
       <div class="sidebar-footer"><div><span class="badge good">${roleLabel()}</span><br>${ERP.escapeHtml(drawingState.session.user.email)}</div><button onclick="ERP.openPasswordSetup()">비밀번호 설정</button><button onclick="ERP.signOut()">로그아웃</button></div>
     </aside>
     <main class="app-main">
-      <header class="topbar"><div><h1>도면 보관함</h1><p>PDF는 브라우저에서 바로 보고, DWG·STP는 내려받아 CAD에서 열 수 있습니다. 교체본은 기존 버전을 보존합니다.</p></div><div class="top-actions"><button class="btn btn-soft" onclick="refreshDrawingLibrary()">새로고침</button>${canEditDrawings() ? '<button class="btn btn-primary" type="button" onclick="openNewDrawingItem()">새 품목 추가</button><label class="btn btn-accent file-button">폴더 최신본 동기화<input id="folderDrawingFiles" type="file" webkitdirectory directory multiple onchange="syncDrawingFolder(this.files)"></label>' : ''}</div></header>
+      <header class="topbar"><div><h1>도면 보관함</h1><p>PDF는 브라우저에서 바로 보고, DWG·STP는 내려받아 CAD에서 열 수 있습니다. 교체본은 기존 버전을 보존합니다.</p><p class="auth-note">도면을 한 번에 올리면 이름이 맞는 품목은 새 버전으로, 없는 품목은 자동으로 신규 등록됩니다.</p></div><div class="top-actions"><button class="btn btn-soft" onclick="refreshDrawingLibrary()">새로고침</button>${canEditDrawings() ? '<button class="btn btn-primary" type="button" onclick="openNewDrawingItem()">새 품목 추가</button><label class="btn btn-accent file-button">도면 일괄 업로드<input id="batchDrawingFiles" type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg" onchange="syncDrawingFolder(this.files); this.value=\'\'"></label><label class="btn btn-accent file-button">폴더 일괄 업로드<input id="folderDrawingFiles" type="file" webkitdirectory directory multiple onchange="syncDrawingFolder(this.files)"></label>' : ''}</div></header>
       <section id="drawingContent">
         <div class="grid-kpi drawing-kpis">
           <article class="card kpi" style="--accent:#dfeef5"><label>접근 가능 품목</label><strong>${drawingState.items.length}</strong></article>
@@ -423,45 +423,115 @@ function findFolderItem(file, lookup) {
   return null;
 }
 
-async function syncDrawingFolder(fileList) {
-  if (drawingState.uploading) return ERP.toast('이미 동기화 중입니다.', 'error');
-  const progress = document.getElementById('syncProgress');
+function drawingItemLookup() {
   const lookup = new Map();
   drawingState.items.forEach(item => {
     lookup.set(normalizedBaseName(item.normalized_key), item);
     lookup.set(normalizedBaseName(item.item_code), item);
     if (item.drawing_path) lookup.set(normalizedBaseName(item.drawing_path.split(/[\\/]/).pop()), item);
   });
+  return lookup;
+}
+
+function displayBaseName(fileName) {
+  return String(fileName || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/\s*\(\d+\)\s*$/, '')
+    .trim();
+}
+
+async function syncDrawingFolder(fileList) {
+  if (drawingState.uploading) return ERP.toast('이미 업로드 중입니다.', 'error');
+  const progress = document.getElementById('syncProgress');
+  const lookup = drawingItemLookup();
 
   const candidates = new Map();
+  const newGroups = new Map();
   let unsupported = 0;
-  let unmatched = 0;
   [...fileList].forEach(file => {
     if (!isSupportedDrawing(file)) { unsupported++; return; }
     const item = findFolderItem(file, lookup);
-    if (!item) { unmatched++; return; }
-    const key = `${item.id}:${ERP.drawingFileKind(file.name)}`;
-    const old = candidates.get(key);
-    if (!old || file.lastModified >= old.file.lastModified) candidates.set(key, { item, file });
+    if (item) {
+      const key = `${item.id}:${ERP.drawingFileKind(file.name)}`;
+      const old = candidates.get(key);
+      if (!old || file.lastModified >= old.file.lastModified) candidates.set(key, { item, file });
+      return;
+    }
+    const code = normalizedBaseName(file.name);
+    if (!newGroups.has(code)) newGroups.set(code, { code, files: [] });
+    newGroups.get(code).files.push(file);
   });
 
-  const jobs = [...candidates.values()];
-  if (!jobs.length) return ERP.toast('품목명과 일치하는 도면을 찾지 못했습니다.', 'error');
+  const matchedJobs = [...candidates.values()];
+  const groups = [...newGroups.values()];
+  const totalSteps = matchedJobs.length + groups.reduce((count, group) => count + group.files.length, 0);
+  if (!totalSteps) return ERP.toast('업로드할 수 있는 도면이 없습니다.', 'error');
+
   drawingState.uploading = true;
   progress.hidden = false;
   let uploaded = 0;
+  let newItems = 0;
   let skipped = 0;
   let failed = 0;
+  let step = 0;
 
-  for (let index = 0; index < jobs.length; index++) {
-    const job = jobs[index];
-    progress.innerHTML = `<strong>도면 동기화 ${index + 1} / ${jobs.length}</strong><div>${ERP.escapeHtml(job.item.item_name)} · ${ERP.escapeHtml(job.file.name)}</div><progress max="${jobs.length}" value="${index}"></progress><small>일치하지 않은 파일 ${unmatched}개 · 지원 외 형식/용량 ${unsupported}개</small>`;
+  const renderProgress = (title, detail) => {
+    progress.innerHTML = `<strong>도면 업로드 ${step + 1} / ${totalSteps}</strong><div>${ERP.escapeHtml(title)}</div><progress max="${totalSteps}" value="${step}"></progress><small>${detail} · 지원 외 형식/용량 ${unsupported}개</small>`;
+  };
+
+  for (const job of matchedJobs) {
+    renderProgress(`${job.item.item_name} · ${job.file.name}`, `기존 품목 새 버전 · 신규 품목 예정 ${groups.length}개`);
     try {
-      const result = await uploadCatalogDrawing(job.item, job.file, '도면 종합 폴더 최신본 동기화');
+      const result = await uploadCatalogDrawing(job.item, job.file, '도면 일괄 업로드');
       result === 'skipped' ? skipped++ : uploaded++;
     } catch (error) {
       failed++;
       console.error(job.file.name, error);
+    }
+    step++;
+  }
+
+  for (const group of groups) {
+    renderProgress(`${displayBaseName(group.files[0].name)} · 신규 품목 등록`, `기존 품목 새 버전 완료 ${uploaded}개`);
+    let item = null;
+    try {
+      const { data, error } = await ERP.client
+        .from('erp_v2_items')
+        .insert({
+          item_code: group.code,
+          normalized_key: group.code,
+          item_name: displayBaseName(group.files[0].name),
+          product: '제품확인필요',
+          process_type: '기타',
+          material: null,
+          unit: 'EA',
+          remark: null,
+          drawing_status: '미매칭',
+          updated_at: new Date().toISOString()
+        })
+        .select('id,item_code,item_name,normalized_key,product,process_type,material,unit,remark,drawing_status,drawing_formats,drawing_path')
+        .single();
+      if (error) throw error;
+      item = data;
+      drawingState.items.push(item);
+      lookup.set(normalizedBaseName(item.normalized_key), item);
+      lookup.set(normalizedBaseName(item.item_code), item);
+      newItems++;
+    } catch (error) {
+      failed += group.files.length;
+      console.error(group.code, error);
+    }
+    for (const file of group.files) {
+      if (!item) { step++; continue; }
+      renderProgress(`${item.item_name} · ${file.name}`, `신규 품목 ${newItems}개 등록됨`);
+      try {
+        const result = await uploadCatalogDrawing(item, file, '도면 일괄 업로드 신규 품목');
+        result === 'skipped' ? skipped++ : uploaded++;
+      } catch (error) {
+        failed++;
+        console.error(file.name, error);
+      }
+      step++;
     }
   }
 
@@ -469,7 +539,7 @@ async function syncDrawingFolder(fileList) {
   await loadDrawingLibrary();
   renderDrawingShell(document.getElementById('drawingRoot'));
   renderDrawingTable();
-  ERP.toast(`동기화 완료 · 등록 ${uploaded} · 동일 파일 제외 ${skipped} · 실패 ${failed}`, failed ? 'error' : 'success');
+  ERP.toast(`업로드 완료 · 새 버전 ${uploaded}개 · 신규 품목 ${newItems}개 · 동일 파일 제외 ${skipped}개 · 실패 ${failed}개`, failed ? 'error' : 'success');
 }
 
 async function uploadCatalogDrawing(item, file, note) {
