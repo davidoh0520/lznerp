@@ -115,7 +115,7 @@ function openNewDrawingItem() {
     <p>품목을 먼저 등록하고, 선택한 도면은 이 품목의 첫 번째 버전으로 함께 보관합니다.</p>
     <form onsubmit="saveNewDrawingItem(event)">
       <div class="form-grid">
-        <div class="field full"><label>품목명</label><input id="drawingNewItemName" oninput="updateNewDrawingItemCode()" placeholder="예: AB IC MOTOR COVER" required></div>
+        <div class="field full"><label>품목명</label><input id="drawingNewItemName" oninput="this.value=this.value.toUpperCase(); updateNewDrawingItemCode()" placeholder="예: AB IC MOTOR COVER" required></div>
         <div class="field full"><label>품목 코드</label><input id="drawingNewItemCode" oninput="this.dataset.manual='true'" placeholder="비워두면 품목명에서 자동 생성"><small>영문·숫자·한글을 사용할 수 있으며 공백은 밑줄로 정리됩니다.</small></div>
         <div class="field"><label>제품</label><select id="drawingNewItemProduct">${drawingSelectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], '제품확인필요')}</select></div>
         <div class="field"><label>가공 분류</label><select id="drawingNewItemProcess">${drawingSelectOptions(['MCT','CNC','GLASS','기어류','기타'], '기타')}</select></div>
@@ -272,15 +272,15 @@ function openDrawingItemEditor(itemId) {
     <p>${ERP.escapeHtml(item.item_code)} · 도면과 연결된 고유 코드는 유지됩니다.</p>
     <form onsubmit="saveDrawingItemEdit(event,${item.id})">
       <div class="form-grid">
-        <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(item.item_name)}" required></div>
+        <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(item.item_name)}" oninput="this.value=this.value.toUpperCase()" required></div>
         <div class="field"><label>제품</label><select id="drawingEditItemProduct">${drawingSelectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], item.product)}</select></div>
         <div class="field"><label>가공 분류</label><select id="drawingEditItemProcess">${drawingSelectOptions(['MCT','CNC','GLASS','기어류','기타'], item.process_type)}</select></div>
-        <div class="field"><label>소재</label><input id="drawingEditItemMaterial" value="${ERP.escapeHtml(item.material || '')}" placeholder="예: SUS304, AL6061, GLASS"></div>
+        <div class="field"><label>소재</label><input id="drawingEditItemMaterial" value="${ERP.escapeHtml(item.material || '')}" oninput="this.value=this.value.toUpperCase()" placeholder="예: SUS304, AL6061, GLASS"></div>
         <div class="field"><label>단위</label><input id="drawingEditItemUnit" value="${ERP.escapeHtml(item.unit || 'EA')}" required></div>
         <div class="field full"><label>비고</label><textarea id="drawingEditItemRemark">${ERP.escapeHtml(item.remark || '')}</textarea></div>
       </div>
       <p class="auth-note">품목명·제품·가공분류·소재를 바꾸면 이 품목에 연결된 과거 매입·매출 기록도 같은 내용으로 정리됩니다.</p>
-      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="closeDrawingItemEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
+      <div class="editor-actions"><button class="btn btn-soft" type="button" onclick="fillItemInfoFromDrawing(${item.id}, this)">도면에서 제품·소재 불러오기</button><button class="btn btn-soft" type="button" onclick="closeDrawingItemEditor()">취소</button><button class="btn btn-primary" type="submit">저장</button></div>
     </form>
   </section>`;
   document.body.appendChild(modal);
@@ -296,6 +296,32 @@ function closeDrawingItemEditor() {
   if (window.drawingItemEditorEscapeHandler) {
     document.removeEventListener('keydown', window.drawingItemEditorEscapeHandler);
     window.drawingItemEditorEscapeHandler = null;
+  }
+}
+
+async function fillItemInfoFromDrawing(itemId, button) {
+  const item = drawingState.items.find(x => Number(x.id) === Number(itemId));
+  if (!item) return ERP.toast('품목을 찾을 수 없습니다.', 'error');
+  const pdf = drawingsForItem(itemId).find(x => x.file_kind === 'PDF');
+  if (!pdf) return ERP.toast('이 품목의 PDF 도면이 없습니다.', 'error');
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = '도면을 읽는 중입니다...';
+  try {
+    const url = await ERP.signedDrawingUrl(pdf.storage_path, 300);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('도면 파일을 불러오지 못했습니다.');
+    const blob = await response.blob();
+    const info = await readDrawingInfo(new File([blob], pdf.file_name, { type: blob.type || 'application/pdf' }));
+    if (!info) return ERP.toast('도면에서 제품·소재를 읽지 못했습니다.', 'error');
+    if (info.product) document.getElementById('drawingEditItemProduct').value = info.product;
+    if (info.material) document.getElementById('drawingEditItemMaterial').value = info.material;
+    ERP.toast(`도면 인식 완료 · 제품 ${info.product || '-'} · 소재 ${info.material || '-'}`, 'success');
+  } catch (error) {
+    ERP.toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
 }
 
@@ -437,7 +463,122 @@ function displayBaseName(fileName) {
   return String(fileName || '')
     .replace(/\.[^.]+$/, '')
     .replace(/\s*\(\d+\)\s*$/, '')
-    .trim();
+    .trim()
+    .toUpperCase();
+}
+
+/* ---------- 도면 타이틀 블록 자동 인식 ---------- */
+
+const PDF_JS_SRC = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+const PDF_JS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.worker.js';
+const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+const KNOWN_PRODUCTS = ['INE-200', 'INT-200', 'INB-200', 'INA-200'];
+const TITLE_BLOCK_LABEL_WORDS = new Set(['MODEL', 'NAME', 'PART', 'NO', 'DWG', 'MATERIAL', 'MATL', 'PRODUCT', 'ITEM', 'CODE']);
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('라이브러리를 불러오지 못했습니다.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensurePdfJs() {
+  if (!window.pdfjsLib) {
+    await loadScriptOnce(PDF_JS_SRC);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKER;
+  }
+  return window.pdfjsLib;
+}
+
+async function ensureTesseract() {
+  if (!window.Tesseract) await loadScriptOnce(TESSERACT_SRC);
+  return window.Tesseract;
+}
+
+function groupRowsByY(words) {
+  const rows = new Map();
+  words.filter(w => w.str && w.str.trim()).forEach(w => {
+    const key = Math.round(w.y / 6) * 6;
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push({ x: w.x, str: w.str });
+  });
+  return [...rows.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([, parts]) => ({ parts: parts.sort((a, b) => a.x - b.x) }));
+}
+
+async function readPdfTextRows(file) {
+  const pdfjs = await ensurePdfJs();
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const page = await doc.getPage(1);
+  const content = await page.getTextContent();
+  await doc.destroy();
+  if (!content.items.length) return [];
+  return groupRowsByY(content.items.map(item => ({ x: item.transform[4], y: item.transform[5], str: item.str })));
+}
+
+async function ocrPdfRows(file) {
+  const pdfjs = await ensurePdfJs();
+  const Tesseract = await ensureTesseract();
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 2.5 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  await doc.destroy();
+  const result = await Tesseract.recognize(canvas, 'eng');
+  const words = [];
+  String(result.data.tsv || '').split('\n').forEach(line => {
+    const cols = line.split('\t');
+    if (cols[0] === '5' && cols[11] && cols[11].trim()) words.push({ x: Number(cols[6]), y: Number(cols[7]), str: cols[11] });
+  });
+  return groupRowsByY(words);
+}
+
+function titleBlockValue(rows, labelPattern) {
+  for (let index = 0; index < rows.length; index++) {
+    const text = rows[index].parts.map(p => p.str).join(' ');
+    const match = text.match(labelPattern);
+    if (!match) continue;
+    const candidates = [];
+    const after = text.slice(match.index + match[0].length);
+    candidates.push(after);
+    rows.slice(index + 1, index + 3).forEach(row => candidates.push(row.parts.map(p => p.str).join(' ')));
+    for (const candidate of candidates) {
+      const tokens = candidate.toUpperCase().split(/[^A-Z0-9\-_\.]+/).filter(Boolean);
+      const token = tokens.find(t => t.length >= 2 && !TITLE_BLOCK_LABEL_WORDS.has(t.replace(/[^A-Z]/g, '')));
+      if (token) return token.replace(/[^A-Z0-9\-_]/g, '');
+    }
+  }
+  return null;
+}
+
+function parseTitleBlock(rows) {
+  if (!rows || !rows.length) return null;
+  const info = {};
+  const material = titleBlockValue(rows, /\bMATERIAL\b|\bMATL\b/i);
+  const model = titleBlockValue(rows, /\bMODEL\s*NAME\b/i) || titleBlockValue(rows, /\bMODEL\b/i);
+  if (material) info.material = material;
+  if (model) {
+    const cleaned = model.replace(/[^A-Z0-9\-]/g, '');
+    info.product = KNOWN_PRODUCTS.includes(cleaned) ? cleaned : '제품확인필요';
+  }
+  return Object.keys(info).length ? info : null;
+}
+
+async function readDrawingInfo(file) {
+  let rows = await readPdfTextRows(file).catch(() => []);
+  let info = parseTitleBlock(rows);
+  if (!info || (!info.product && !info.material)) {
+    const ocrRows = await ocrPdfRows(file).catch(() => []);
+    info = parseTitleBlock(ocrRows) || info;
+  }
+  return info;
 }
 
 async function syncDrawingFolder(fileList) {
@@ -494,6 +635,12 @@ async function syncDrawingFolder(fileList) {
   for (const group of groups) {
     renderProgress(`${displayBaseName(group.files[0].name)} · 신규 품목 등록`, `기존 품목 새 버전 완료 ${uploaded}개`);
     let item = null;
+    let detected = null;
+    const pdfFile = group.files.find(file => ERP.drawingFileKind(file.name) === 'PDF');
+    if (pdfFile) {
+      renderProgress(`${displayBaseName(group.files[0].name)} · 도면 정보 인식 중`, 'PDF에서 제품·소재를 읽고 있습니다');
+      detected = await readDrawingInfo(pdfFile).catch(() => null);
+    }
     try {
       const { data, error } = await ERP.client
         .from('erp_v2_items')
@@ -501,9 +648,9 @@ async function syncDrawingFolder(fileList) {
           item_code: group.code,
           normalized_key: group.code,
           item_name: displayBaseName(group.files[0].name),
-          product: '제품확인필요',
+          product: detected?.product || '제품확인필요',
           process_type: '기타',
-          material: null,
+          material: detected?.material || null,
           unit: 'EA',
           remark: null,
           drawing_status: '미매칭',
