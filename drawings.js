@@ -239,7 +239,7 @@ function renderDrawingTable() {
   const product = document.getElementById('drawingProduct')?.value || '';
   const process = document.getElementById('drawingProcess')?.value || '';
   const rows = drawingState.items.filter(item =>
-    (!q || `${item.item_code} ${item.item_name} ${item.material || ''}`.toLowerCase().includes(q))
+    (!q || `${item.item_code} ${item.item_name} ${item.material || ''}`.replace(/_/g, ' ').toLowerCase().includes(q.replace(/_/g, ' ')))
     && (!product || item.product === product)
     && (!process || item.process_type === process)
   );
@@ -251,7 +251,11 @@ function drawingItemRow(item) {
   const all = drawingsForItem(item.id);
   const current = all.filter(x => x.is_current).sort((a, b) => String(a.file_kind).localeCompare(String(b.file_kind)));
   const formats = current.length ? current.map(file => `<button class="format-chip ${file.file_kind === 'PDF' ? 'preview' : ''}" onclick="openDrawing('${file.id}')">${ERP.escapeHtml(file.file_kind || 'FILE')} · v${file.version_no}</button>`).join('') : '<span class="badge bad">도면 없음</span>';
-  return `<tr><td><strong>${ERP.escapeHtml(item.item_name)}</strong><br><small>${ERP.escapeHtml(item.item_code)}</small></td><td>${ERP.escapeHtml(item.product)}</td><td>${ERP.escapeHtml(item.process_type)}<br><small>${ERP.escapeHtml(item.material || '-')}</small></td><td><div class="format-list">${formats}</div></td><td>${all.length ? `<button class="btn btn-small btn-soft" onclick="showDrawingHistory(${item.id})">이력 ${all.length}</button>` : '-'}</td>${canEditDrawings() ? `<td><div class="row-actions"><button class="btn btn-small btn-soft" type="button" onclick="openDrawingItemEditor(${item.id})">품목정보 수정</button><label class="btn btn-small btn-primary file-button">도면 업로드<input type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg" onchange="uploadItemDrawings(${item.id},this.files)"></label></div></td>` : ''}</tr>`;
+  return `<tr><td><strong>${ERP.escapeHtml(displayItemName(item.item_name))}</strong><br><small>${ERP.escapeHtml(item.item_code)}</small></td><td>${ERP.escapeHtml(item.product)}</td><td>${ERP.escapeHtml(item.process_type)}<br><small>${ERP.escapeHtml(item.material || '-')}</small></td><td><div class="format-list">${formats}</div></td><td>${all.length ? `<button class="btn btn-small btn-soft" onclick="showDrawingHistory(${item.id})">이력 ${all.length}</button>` : '-'}</td>${canEditDrawings() ? `<td><div class="row-actions"><button class="btn btn-small btn-soft" type="button" onclick="openDrawingItemEditor(${item.id})">품목정보 수정</button><label class="btn btn-small btn-primary file-button">도면 업로드<input type="file" multiple accept=".dwg,.pdf,.stp,.step,.png,.jpg,.jpeg" onchange="uploadItemDrawings(${item.id},this.files)"></label></div></td>` : ''}</tr>`;
+}
+
+function displayItemName(name) {
+  return String(name || '').toUpperCase().replace(/_/g, ' ');
 }
 
 function drawingSelectOptions(values, current) {
@@ -285,7 +289,7 @@ async function openDrawingItemEditor(itemId) {
       </div>
     <form onsubmit="saveDrawingItemEdit(event,${item.id})">
       <div class="form-grid">
-        <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(item.item_name)}" oninput="this.value=this.value.toUpperCase()" required></div>
+        <div class="field full"><label>품목명</label><input id="drawingEditItemName" value="${ERP.escapeHtml(displayItemName(item.item_name))}" oninput="this.value=this.value.toUpperCase()" required></div>
         <div class="field"><label>제품</label><select id="drawingEditItemProduct">${drawingSelectOptions(['INE-200','INT-200','INB-200','INA-200','제품확인필요'], item.product)}</select></div>
         <div class="field"><label>가공 분류</label><select id="drawingEditItemProcess">${drawingSelectOptions(['MCT','CNC','GLASS','기어류','기타'], item.process_type)}</select></div>
         <div class="field"><label>소재</label><input id="drawingEditItemMaterial" value="${ERP.escapeHtml(item.material || '')}" oninput="this.value=this.value.toUpperCase()" placeholder="예: SUS304, AL6061, GLASS"></div>
@@ -406,7 +410,7 @@ async function showDrawingHistory(itemId) {
   const files = drawingsForItem(itemId).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const popup = window.open('', '_blank', 'width=760,height=760');
   if (!popup) return ERP.toast('팝업을 허용해 주세요.', 'error');
-  popup.document.write(`<meta charset="utf-8"><link rel="stylesheet" href="erp.css"><div class="card card-pad" style="margin:20px"><div class="section-title"><div><h2>${ERP.escapeHtml(item.item_name)}</h2><p>기존 버전은 삭제하지 않고 보관됩니다.</p></div></div><div class="table-wrap"><table><thead><tr><th>형식</th><th>버전</th><th>파일</th><th>등록일</th><th></th></tr></thead><tbody>${files.map(file => `<tr><td><span class="badge ${file.is_current ? 'good' : ''}">${ERP.escapeHtml(file.file_kind || 'FILE')}</span></td><td>v${file.version_no}${file.is_current ? ' · 최신' : ''}</td><td>${ERP.escapeHtml(file.file_name)}</td><td>${ERP.date(file.created_at)}</td><td><button class="btn btn-small btn-soft" data-id="${file.id}">열기</button></td></tr>`).join('')}</tbody></table></div></div>`);
+  popup.document.write(`<meta charset="utf-8"><link rel="stylesheet" href="erp.css"><div class="card card-pad" style="margin:20px"><div class="section-title"><div><h2>${ERP.escapeHtml(displayItemName(item.item_name))}</h2><p>기존 버전은 삭제하지 않고 보관됩니다.</p></div></div><div class="table-wrap"><table><thead><tr><th>형식</th><th>버전</th><th>파일</th><th>등록일</th><th></th></tr></thead><tbody>${files.map(file => `<tr><td><span class="badge ${file.is_current ? 'good' : ''}">${ERP.escapeHtml(file.file_kind || 'FILE')}</span></td><td>v${file.version_no}${file.is_current ? ' · 최신' : ''}</td><td>${ERP.escapeHtml(file.file_name)}</td><td>${ERP.date(file.created_at)}</td><td><button class="btn btn-small btn-soft" data-id="${file.id}">열기</button></td></tr>`).join('')}</tbody></table></div></div>`);
   popup.document.close();
   popup.document.querySelectorAll('[data-id]').forEach(button => button.addEventListener('click', () => openDrawing(button.dataset.id)));
 }
@@ -635,7 +639,7 @@ async function syncDrawingFolder(fileList) {
   };
 
   for (const job of matchedJobs) {
-    renderProgress(`${job.item.item_name} · ${job.file.name}`, `기존 품목 새 버전 · 신규 품목 예정 ${groups.length}개`);
+    renderProgress(`${displayItemName(job.item.item_name)} · ${job.file.name}`, `기존 품목 새 버전 · 신규 품목 예정 ${groups.length}개`);
     try {
       const result = await uploadCatalogDrawing(job.item, job.file, '도면 일괄 업로드');
       result === 'skipped' ? skipped++ : uploaded++;
@@ -684,7 +688,7 @@ async function syncDrawingFolder(fileList) {
     }
     for (const file of group.files) {
       if (!item) { step++; continue; }
-      renderProgress(`${item.item_name} · ${file.name}`, `신규 품목 ${newItems}개 등록됨`);
+      renderProgress(`${displayItemName(item.item_name)} · ${file.name}`, `신규 품목 ${newItems}개 등록됨`);
       try {
         const result = await uploadCatalogDrawing(item, file, '도면 일괄 업로드 신규 품목');
         result === 'skipped' ? skipped++ : uploaded++;
